@@ -11,6 +11,9 @@ import {
   realtimeRules,
   realtimeStaticRules,
 } from "../domain/rules/realtime-rules.js";
+import { headerRules } from "../domain/rules/site/header-rules.js";
+import { requestHygieneRules } from "../domain/rules/site/request-hygiene-rules.js";
+import { domRules } from "../domain/rules/site/dom-rules.js";
 
 export class RuleRegistry implements RuleProvider {
   private readonly rules: Rule[];
@@ -24,6 +27,9 @@ export class RuleRegistry implements RuleProvider {
       ...graphQlStaticRules(),
       ...realtimeRules(),
       ...realtimeStaticRules(),
+      ...headerRules(),
+      ...requestHygieneRules(),
+      ...domRules(),
     ];
   }
 

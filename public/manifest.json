@@ -6,7 +6,11 @@
     "permissions": [
         "storage",
         "sidePanel",
-        "tabs"
+        "tabs",
+        "webRequest"
+    ],
+    "host_permissions": [
+        "<all_urls>"
     ],
     "background": {
         "service_worker": "background/service-worker.js",
@@ -36,6 +40,15 @@
             "run_at": "document_start",
             "world": "MAIN",
             "all_frames": true
+        },
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "content/page-scan.js"
+            ],
+            "run_at": "document_idle"
         }
     ],
     "action": {

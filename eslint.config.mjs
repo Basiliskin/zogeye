@@ -118,8 +118,24 @@ export default [
     rules: { 'no-restricted-imports': 'off' },
   },
   {
-    files: ['src/infrastructure/**/*.{ts,tsx}'],
-    rules: { 'no-restricted-imports': 'off' },
+    // Browser-glue layers: chrome.* is an untyped ambient global, so the
+    // type-aware "unsafe *" family fires on every extension API call. These
+    // layers are the boundary; the deterministic rule logic lives in
+    // domain/application, which stays fully strict.
+    files: [
+      'src/infrastructure/**/*.{ts,tsx}',
+      'src/background/**/*.{ts,tsx}',
+      'src/content/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-imports': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+    },
   },
   {
     files: ['.claude/hooks/**/*.{js,mjs,cjs}', 'scripts/**/*.{js,mjs,cjs}'],
