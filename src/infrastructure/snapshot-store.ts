@@ -1,5 +1,8 @@
 // src/infrastructure/snapshot-store.ts
-import type { StorageSnapshot } from "../domain/snapshot/storage-snapshot.js";
+import {
+  hydrateSnapshot,
+  type StorageSnapshot,
+} from "../domain/snapshot/storage-snapshot.js";
 
 const KEY = "api-qa.storage-snapshots";
 
@@ -12,13 +15,16 @@ export class SnapshotStore {
   async list(): Promise<StorageSnapshot[]> {
     const map = await this.readMap();
 
-    return Object.values(map).sort((a, b) => b.updatedAt - a.updatedAt);
+    return Object.values(map)
+      .map(hydrateSnapshot)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   async get(id: string): Promise<StorageSnapshot | undefined> {
     const map = await this.readMap();
+    const found = map[id];
 
-    return map[id];
+    return found ? hydrateSnapshot(found) : undefined;
   }
 
   async save(snapshot: StorageSnapshot): Promise<void> {

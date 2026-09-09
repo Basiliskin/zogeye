@@ -1,15 +1,31 @@
 // src/domain/storage-snapshot.unit.test.ts
 import { describe, expect, it } from "vitest";
 import {
+  collectLabels,
   cookieUrl,
   createSnapshot,
+  deleteSnapshotEntry,
+  filterSnapshots,
+  findSnapshotForUrl,
+  hydrateSnapshot,
   itemId,
+  listSnapshotEntries,
+  newCookieForOrigin,
+  normalizeLabels,
+  parseLabels,
+  putSnapshotEntry,
   renameSnapshot,
   snapshotCounts,
   SnapshotNameError,
+  updateSnapshotCapture,
+  updateSnapshotMeta,
   validateSnapshotName,
+  type PutSnapshotEntryInput,
   type SnapshotCookie,
+  type SnapshotEntryView,
+  type SnapshotFilter,
   type StorageCapture,
+  type StorageSnapshot,
 } from "./storage-snapshot.js";
 
 const cookie = (over: Partial<SnapshotCookie> = {}): SnapshotCookie => ({
@@ -147,12 +163,236 @@ describe("renameSnapshot", () => {
 describe("cookieUrl", () => {
   it("strips a leading dot and honours the secure flag", () => {
     expect(cookieUrl(cookie())).toBe("https://example.com/");
-    expect(cookieUrl(cookie({ secure: false, domain: "api.example.com" }))).toBe(
-      "http://api.example.com/",
-    );
+    expect(
+      cookieUrl(cookie({ secure: false, domain: "api.example.com" })),
+    ).toBe("http://api.example.com/");
   });
 
   it("defaults an empty path to '/'", () => {
     expect(cookieUrl(cookie({ path: "" }))).toBe("https://example.com/");
+  });
+});
+
+const snap = (over: Partial<StorageSnapshot> = {}): StorageSnapshot =>
+  createSnapshot({
+    id: over.id ?? "s1",
+    name: over.name ?? "Snap",
+    capture: capture(),
+    notes: over.notes,
+    labels: over.labels,
+    now: 1,
+  });
+
+describe("createSnapshot notes/labels defaults", () => {
+  it("defaults notes to '' and labels to []", () => {
+    const s = createSnapshot({
+      id: "s1",
+      name: "N",
+      capture: capture(),
+      now: 1,
+    });
+    expect(s.notes).toBe("");
+    expect(s.labels).toEqual([]);
+  });
+
+  it("normalizes initial labels and trims notes", () => {
+    const s = createSnapshot({
+      id: "s1",
+      name: "N",
+      capture: capture(),
+      notes: "  hi  ",
+      labels: ["Auth", "auth", " "],
+      now: 1,
+    });
+    expect(s.notes).toBe("hi");
+    expect(s.labels).toEqual(["auth"]);
+  });
+});
+
+describe("normalizeLabels / parseLabels", () => {
+  it("trims, lower-cases, de-dupes and drops blanks", () => {
+    expect(normalizeLabels([" A ", "a", "", "B"])).toEqual(["a", "b"]);
+  });
+
+  it("splits on commas and newlines", () => {
+    expect(parseLabels("one, two\nthree")).toEqual(["one", "two", "three"]);
+  });
+});
+
+describe("collectLabels", () => {
+  it("returns the sorted union across snapshots", () => {
+    const a = snap({ id: "a", labels: ["z", "a"] });
+    const b = snap({ id: "b", labels: ["m"] });
+    expect(collectLabels([a, b])).toEqual(["a", "m", "z"]);
+  });
+});
+
+describe("hydrateSnapshot", () => {
+  it("fills missing notes/labels on legacy records", () => {
+    const legacy = { ...snap(), notes: undefined, labels: undefined };
+    const h = hydrateSnapshot(legacy as unknown as StorageSnapshot);
+    expect(h.notes).toBe("");
+    expect(h.labels).toEqual([]);
+  });
+});
+
+describe("updateSnapshotMeta", () => {
+  it("patches name/notes/labels and bumps updatedAt only", () => {
+    const s = snap();
+    const next = updateSnapshotMeta(
+      s,
+      { name: "  New  ", notes: "  n  ", labels: ["X"] },
+      99,
+    );
+    expect(next).toMatchObject({
+      name: "New",
+      notes: "n",
+      labels: ["x"],
+      createdAt: s.createdAt,
+      updatedAt: 99,
+    });
+  });
+
+  it("throws on a blank name", () => {
+    expect(() => updateSnapshotMeta(snap(), { name: "" }, 2)).toThrow(
+      SnapshotNameError,
+    );
+  });
+});
+
+describe("filterSnapshots", () => {
+  const list = [
+    snap({ id: "a", name: "Admin login", labels: ["auth"] }),
+    snap({ id: "b", name: "Guest", labels: ["misc"] }),
+  ];
+
+  it("matches free text against metadata and stored values", () => {
+    const filter: SnapshotFilter = { query: "t1" };
+    expect(filterSnapshots(list, filter).map((s) => s.id)).toEqual(["a", "b"]);
+    expect(filterSnapshots(list, { query: "admin" }).map((s) => s.id)).toEqual([
+      "a",
+    ]);
+  });
+
+  it("requires every selected label (AND)", () => {
+    expect(
+      filterSnapshots(list, { labels: ["auth"] }).map((s) => s.id),
+    ).toEqual(["a"]);
+    expect(filterSnapshots(list, { labels: ["auth", "misc"] })).toEqual([]);
+  });
+});
+
+describe("findSnapshotForUrl", () => {
+  it("matches the exact url", () => {
+    const s = snap();
+    expect(findSnapshotForUrl([s], "https://example.com/app")?.id).toBe("s1");
+    expect(
+      findSnapshotForUrl([s], "https://example.com/other"),
+    ).toBeUndefined();
+  });
+});
+
+describe("updateSnapshotCapture", () => {
+  it("re-shapes the data but preserves id/name/notes/labels/createdAt", () => {
+    const s = updateSnapshotMeta(snap(), { notes: "keep", labels: ["l"] }, 1);
+    const next = updateSnapshotCapture(
+      s,
+      capture({ local: [["only", "v"]], session: [], cookies: [] }),
+      undefined,
+      50,
+    );
+    expect(next).toMatchObject({
+      id: s.id,
+      name: s.name,
+      notes: "keep",
+      labels: ["l"],
+      createdAt: s.createdAt,
+      updatedAt: 50,
+    });
+    expect(next.local).toEqual([["only", "v"]]);
+  });
+});
+
+describe("listSnapshotEntries", () => {
+  it("flattens local, session and cookies", () => {
+    const entries: SnapshotEntryView[] = listSnapshotEntries(snap());
+    expect(entries).toEqual([
+      { area: "localStorage", key: "token", value: "t1" },
+      { area: "localStorage", key: "theme", value: "dark" },
+      { area: "sessionStorage", key: "draft", value: "hello" },
+      { area: "cookies", key: "sid", value: "abc" },
+      { area: "cookies", key: "csrf", value: "z" },
+    ]);
+  });
+});
+
+describe("putSnapshotEntry", () => {
+  it("upserts a localStorage value", () => {
+    const input: PutSnapshotEntryInput = {
+      area: "localStorage",
+      key: "token",
+      value: "t2",
+    };
+    const next = putSnapshotEntry(snap(), input, 9);
+    expect(next.local).toContainEqual(["token", "t2"]);
+    expect(next.updatedAt).toBe(9);
+  });
+
+  it("appends a new sessionStorage key", () => {
+    const next = putSnapshotEntry(
+      snap(),
+      { area: "sessionStorage", key: "fresh", value: "v" },
+      9,
+    );
+    expect(next.session).toContainEqual(["fresh", "v"]);
+  });
+
+  it("upserts a cookie by name", () => {
+    const next = putSnapshotEntry(
+      snap(),
+      {
+        area: "cookies",
+        cookie: newCookieForOrigin("https://example.com", "sid", "new"),
+      },
+      9,
+    );
+    expect(next.cookies.find((c) => c.name === "sid")?.value).toBe("new");
+  });
+
+  it("rejects a blank key", () => {
+    expect(() =>
+      putSnapshotEntry(
+        snap(),
+        { area: "localStorage", key: " ", value: "v" },
+        1,
+      ),
+    ).toThrow(SnapshotNameError);
+  });
+});
+
+describe("deleteSnapshotEntry", () => {
+  it("removes a storage entry and a cookie", () => {
+    const a = deleteSnapshotEntry(snap(), "localStorage", "token", 1);
+    expect(a.local.map(([k]) => k)).toEqual(["theme"]);
+    const b = deleteSnapshotEntry(snap(), "cookies", "sid", 1);
+    expect(b.cookies.map((c) => c.name)).toEqual(["csrf"]);
+  });
+});
+
+describe("newCookieForOrigin", () => {
+  it("derives host and secure from the origin", () => {
+    expect(newCookieForOrigin("https://a.example.com", "n", "v")).toMatchObject(
+      {
+        name: "n",
+        value: "v",
+        domain: "a.example.com",
+        secure: true,
+        hostOnly: true,
+        session: true,
+      },
+    );
+    expect(newCookieForOrigin("http://localhost:3000", "n", "v").secure).toBe(
+      false,
+    );
   });
 });

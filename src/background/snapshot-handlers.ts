@@ -7,8 +7,15 @@ import type { SnapshotStore } from "../infrastructure/snapshot-store.js";
 import {
   createSnapshot,
   renameSnapshot,
+  updateSnapshotMeta,
+  updateSnapshotCapture,
+  putSnapshotEntry,
+  deleteSnapshotEntry,
+  newCookieForOrigin,
   cookieUrl,
   SnapshotNameError,
+  type PutSnapshotEntryInput,
+  type SnapshotArea,
   type SnapshotCookie,
   type StorageCapture,
   type StorageEntry,
@@ -226,6 +233,43 @@ function str(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function strList(value: unknown): string[] | undefined {
+  return Array.isArray(value) ? value.map(String) : undefined;
+}
+
+function fail(error: unknown): { ok: false; error: string } {
+  return {
+    ok: false,
+    error: error instanceof SnapshotNameError ? error.message : String(error),
+  };
+}
+
+const STORAGE_AREAS: SnapshotArea[] = [
+  "localStorage",
+  "sessionStorage",
+  "cookies",
+];
+
+function entryInput(
+  snapshot: StorageSnapshot,
+  area: SnapshotArea,
+  key: string,
+  value: string,
+): PutSnapshotEntryInput {
+  if (area === "cookies") {
+    const existing = snapshot.cookies.find((cookie) => cookie.name === key);
+
+    return {
+      area: "cookies",
+      cookie: existing
+        ? { ...existing, value }
+        : newCookieForOrigin(snapshot.origin, key, value),
+    };
+  }
+
+  return { area, key, value };
+}
+
 export async function handleSnapshotMessage(
   message: { type: string; [key: string]: unknown },
   store: SnapshotStore,
@@ -262,20 +306,48 @@ export async function handleSnapshotMessage(
           id: crypto.randomUUID(),
           name: str(message.name),
           capture,
-          selectedItemIds: Array.isArray(message.selectedItemIds)
-            ? message.selectedItemIds.map(String)
-            : undefined,
+          selectedItemIds: strList(message.selectedItemIds),
+          notes: str(message.notes),
+          labels: strList(message.labels),
           now: Date.now(),
         });
         await store.save(snapshot);
 
         return { ok: true, snapshot };
       } catch (error) {
-        return {
-          ok: false,
-          error:
-            error instanceof SnapshotNameError ? error.message : String(error),
-        };
+        return fail(error);
+      }
+    }
+
+    case "snapshots/update": {
+      if (typeof message.tabId !== "number") {
+        return { ok: false, error: "No active tab." };
+      }
+
+      const existing = await store.get(String(message.id));
+
+      if (!existing) {
+        return { ok: false, error: "Snapshot not found." };
+      }
+
+      const capture = await captureStorage(message.tabId);
+
+      if (!capture) {
+        return { ok: false, error: "Storage is unavailable on this tab." };
+      }
+
+      try {
+        const next = updateSnapshotCapture(
+          existing,
+          capture,
+          strList(message.selectedItemIds),
+          Date.now(),
+        );
+        await store.save(next);
+
+        return { ok: true, snapshot: next };
+      } catch (error) {
+        return fail(error);
       }
     }
 
@@ -287,21 +359,90 @@ export async function handleSnapshotMessage(
       }
 
       try {
-        const next = renameSnapshot(
+        const next = renameSnapshot(existing, str(message.name), Date.now());
+        await store.save(next);
+
+        return { ok: true, snapshot: next };
+      } catch (error) {
+        return fail(error);
+      }
+    }
+
+    case "snapshots/update-meta": {
+      const existing = await store.get(String(message.id));
+
+      if (!existing) {
+        return { ok: false, error: "Snapshot not found." };
+      }
+
+      try {
+        const next = updateSnapshotMeta(
           existing,
-          str(message.name),
+          {
+            name: typeof message.name === "string" ? message.name : undefined,
+            notes:
+              typeof message.notes === "string" ? message.notes : undefined,
+            labels: strList(message.labels),
+          },
           Date.now(),
         );
         await store.save(next);
 
         return { ok: true, snapshot: next };
       } catch (error) {
-        return {
-          ok: false,
-          error:
-            error instanceof SnapshotNameError ? error.message : String(error),
-        };
+        return fail(error);
       }
+    }
+
+    case "snapshots/put-entry": {
+      const existing = await store.get(String(message.id));
+
+      if (!existing) {
+        return { ok: false, error: "Snapshot not found." };
+      }
+
+      const area = str(message.area) as SnapshotArea;
+
+      if (!STORAGE_AREAS.includes(area)) {
+        return { ok: false, error: "Unknown storage area." };
+      }
+
+      try {
+        const next = putSnapshotEntry(
+          existing,
+          entryInput(existing, area, str(message.key), str(message.value)),
+          Date.now(),
+        );
+        await store.save(next);
+
+        return { ok: true, snapshot: next };
+      } catch (error) {
+        return fail(error);
+      }
+    }
+
+    case "snapshots/delete-entry": {
+      const existing = await store.get(String(message.id));
+
+      if (!existing) {
+        return { ok: false, error: "Snapshot not found." };
+      }
+
+      const area = str(message.area) as SnapshotArea;
+
+      if (!STORAGE_AREAS.includes(area)) {
+        return { ok: false, error: "Unknown storage area." };
+      }
+
+      const next = deleteSnapshotEntry(
+        existing,
+        area,
+        str(message.key),
+        Date.now(),
+      );
+      await store.save(next);
+
+      return { ok: true, snapshot: next };
     }
 
     case "snapshots/delete":

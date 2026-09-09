@@ -233,7 +233,11 @@ async function handleMessage(message: any, sender: any): Promise<unknown> {
     case "snapshots/inventory":
     case "snapshots/list":
     case "snapshots/create":
+    case "snapshots/update":
     case "snapshots/rename":
+    case "snapshots/update-meta":
+    case "snapshots/put-entry":
+    case "snapshots/delete-entry":
     case "snapshots/delete":
     case "snapshots/restore":
       return handleSnapshotMessage(message, snapshots);
