@@ -1,10 +1,10 @@
-// src/domain/performance.ts
+// src/domain/traffic/performance.ts
 // Deterministic latency analysis over captured requests: which API / socket
 // calls responded slowly, both in absolute terms and relative to their peers.
 // Static assets (scripts, styles, images, fonts, media) are excluded so the
 // signal is about application traffic, not page weight.
-import type { Finding, RequestFact, Severity } from "./models.js";
-import { parseUrlSafe } from "./web-utils.js";
+import type { Finding, RequestFact, Severity } from "../models.js";
+import { parseUrlSafe } from "../web-utils.js";
 
 const STATIC_EXTENSION =
   /\.(js|mjs|cjs|css|png|jpe?g|gif|svg|webp|avif|ico|bmp|woff2?|ttf|otf|eot|mp4|webm|ogg|mp3|wav|flac|wasm|map|pdf)$/i;

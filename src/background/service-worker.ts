@@ -5,7 +5,8 @@ import { TabRequestStore } from "../infrastructure/tab-request-store.js";
 import { RecordingStore } from "../infrastructure/recording-store.js";
 import { SnapshotStore } from "../infrastructure/snapshot-store.js";
 import { handleSnapshotMessage } from "./snapshot-handlers.js";
-import { findSlowRequests } from "../domain/performance.js";
+import { findSlowRequests } from "../domain/traffic/performance.js";
+import { findRequestDuplication } from "../domain/traffic/request-duplication.js";
 import {
   createRecording,
   updateRecordingMeta,
@@ -567,6 +568,7 @@ async function buildReport(tabId: number): Promise<Report> {
   const findings = [
     ...analyzer.analyzeContexts(contexts),
     ...findSlowRequests(requests),
+    ...findRequestDuplication(requests),
   ];
 
   return analyzer.createReport(findings, {

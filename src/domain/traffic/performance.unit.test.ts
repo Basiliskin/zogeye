@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { findSlowRequests, isStaticResource } from "./performance.js";
-import type { Finding, RequestFact } from "./models.js";
+import type { Finding, RequestFact } from "../models.js";
 
 const req = (partial: Partial<RequestFact>): RequestFact => ({
   url: "https://api.example.com/v1/thing",
