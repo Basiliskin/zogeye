@@ -2,8 +2,10 @@
   "name": "api-qa-mentor",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "type": "module",
   "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
+    "watch": "tsc -w -p tsconfig.json",
     "test": "echo \"Error: no test specified\" && exit 1",
     "verify": "./scripts/verify.sh",
     "verify:fast": "./scripts/verify.sh --fast",
@@ -18,7 +20,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.0",
     "eslint": "^9.39.5",

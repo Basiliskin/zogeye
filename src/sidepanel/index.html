@@ -1,0 +1,46 @@
+<!-- src/sidepanel/index.html -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>API QA Mentor</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      font-size: 12px;
+      margin: 12px;
+    }
+
+    button {
+      margin-right: 8px;
+    }
+
+    #output {
+      white-space: pre-wrap;
+      border: 1px solid #ccc;
+      padding: 8px;
+      min-height: 320px;
+    }
+  </style>
+</head>
+<body>
+  <h1>API QA Mentor</h1>
+
+  <p>
+    Live review captures fetch/XHR/sendBeacon facts from the active tab.
+    Static review scans selected local project files.
+  </p>
+
+  <button id="scan-network">Review captured network API usage</button>
+  <button id="clear-network">Clear network facts</button>
+
+  <hr>
+
+  <p>Select project folder for deterministic static scan:</p>
+  <input id="files" type="file" multiple webkitdirectory>
+
+  <pre id="output">Ready.</pre>
+
+  <script type="module" src="./sidepanel.js"></script>
+</body>
+</html>

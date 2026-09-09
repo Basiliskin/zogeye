@@ -1,0 +1,46 @@
+{
+    "manifest_version": 3,
+    "name": "API QA Mentor",
+    "version": "0.1.0",
+    "description": "Deterministic, local QA reviewer for network API usage and static project checks.",
+    "permissions": [
+        "storage",
+        "sidePanel",
+        "tabs"
+    ],
+    "background": {
+        "service_worker": "background/service-worker.js",
+        "type": "module"
+    },
+    "side_panel": {
+        "default_path": "sidepanel/index.html"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://*/*",
+                "http://localhost/*"
+            ],
+            "js": [
+                "content/relay.js"
+            ],
+            "run_at": "document_start",
+            "all_frames": true
+        },
+        {
+            "matches": [
+                "https://*/*",
+                "http://localhost/*"
+            ],
+            "js": [
+                "content/network-hook.js"
+            ],
+            "run_at": "document_start",
+            "world": "MAIN",
+            "all_frames": true
+        }
+    ],
+    "action": {
+        "default_title": "API QA Mentor"
+    }
+}

@@ -9,10 +9,16 @@
     "noUnusedParameters": true,
     "verbatimModuleSyntax": true,
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "rootDir": "src",
+    "outDir": "dist",
+    "noEmitOnError": true,
     "skipLibCheck": true,
-    "outDir": "dist"
+    "sourceMap": false,
+    "declaration": false,
+    "isolatedModules": true,
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["src"]
 }
