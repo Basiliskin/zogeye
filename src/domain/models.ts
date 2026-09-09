@@ -18,6 +18,8 @@ export interface RequestFact {
   body?: string | undefined;
   source?: string | undefined;
   timestamp: number;
+  /** Wall-clock time from send to response, in milliseconds, when measured. */
+  durationMs?: number | undefined;
 }
 
 export interface FileFact {

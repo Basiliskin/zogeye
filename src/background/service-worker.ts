@@ -2,6 +2,7 @@
 import { Analyzer } from "../application/analyzer.js";
 import { RuleRegistry } from "../application/rule-registry.js";
 import { TabRequestStore } from "../infrastructure/tab-request-store.js";
+import { findSlowRequests } from "../domain/performance.js";
 import type {
   AnalysisContext,
   PageFact,
@@ -65,7 +66,9 @@ chrome.runtime.onMessage.addListener(
   (message: any, sender: any, sendResponse: any) => {
     handleMessage(message, sender)
       .then(sendResponse)
-      .catch((error: unknown) => sendResponse({ ok: false, error: String(error) }));
+      .catch((error: unknown) =>
+        sendResponse({ ok: false, error: String(error) }),
+      );
 
     return true;
   },
@@ -114,6 +117,8 @@ function normalize(request: any): RequestFact {
     body: request.body,
     source: request.source,
     timestamp: Number(request.timestamp ?? Date.now()),
+    durationMs:
+      typeof request.durationMs === "number" ? request.durationMs : undefined,
   };
 }
 
@@ -129,7 +134,8 @@ function collapseHeaders(
     // Multiple Set-Cookie headers must all survive; join with newline so the
     // cookie parser can split them back apart without colliding with commas
     // inside Expires.
-    result[key] = result[key] === undefined ? value : `${result[key]}\n${value}`;
+    result[key] =
+      result[key] === undefined ? value : `${result[key]}\n${value}`;
   }
 
   return result;
@@ -166,7 +172,10 @@ async function buildReport(tabId: number): Promise<Report> {
   const contexts: AnalysisContext[] = requests.map((request) => ({ request }));
   if (page) contexts.push({ page });
 
-  const findings = analyzer.analyzeContexts(contexts);
+  const findings = [
+    ...analyzer.analyzeContexts(contexts),
+    ...findSlowRequests(requests),
+  ];
 
   return analyzer.createReport(findings, {
     requests: requests.length,

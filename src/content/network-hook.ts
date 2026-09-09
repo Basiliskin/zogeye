@@ -81,6 +81,7 @@
 
     const body = bodyPreview(init?.body);
     const timestamp = Date.now();
+    const startedAt = performance.now();
 
     try {
       const response = await originalFetch(input, init);
@@ -101,6 +102,7 @@
         body,
         source: "fetch",
         timestamp,
+        durationMs: Math.round(performance.now() - startedAt),
       });
 
       return response;
@@ -112,6 +114,7 @@
         body,
         source: "fetch-error",
         timestamp,
+        durationMs: Math.round(performance.now() - startedAt),
       });
 
       throw error;
@@ -124,7 +127,12 @@
 
   const xhrState = new WeakMap<
     object,
-    { method: string; url: string; requestHeaders: Record<string, string> }
+    {
+      method: string;
+      url: string;
+      requestHeaders: Record<string, string>;
+      startedAt: number;
+    }
   >();
 
   (XMLHttpRequest.prototype as any).open = function (
@@ -135,6 +143,7 @@
       method: String(args[0] ?? "GET").toUpperCase(),
       url: String(args[1] ?? ""),
       requestHeaders: {},
+      startedAt: 0,
     });
 
     return Reflect.apply(originalOpen, this, args);
@@ -158,6 +167,8 @@
     const state = xhrState.get(this);
 
     if (state) {
+      state.startedAt = performance.now();
+
       this.addEventListener("loadend", () => {
         const responseHeaders: Record<string, string> = {};
 
@@ -184,6 +195,7 @@
           body: bodyPreview(body),
           source: "xhr",
           timestamp: Date.now(),
+          durationMs: Math.round(performance.now() - state.startedAt),
         });
       });
     }
@@ -219,6 +231,7 @@
         const protocolValue = Array.isArray(protocols)
           ? protocols.join(",")
           : String(protocols ?? "");
+        const handshakeStart = performance.now();
 
         send({
           url: wsUrl,
@@ -229,6 +242,20 @@
           source: "websocket",
           timestamp: Date.now(),
         });
+
+        this.addEventListener(
+          "open",
+          () => {
+            send({
+              url: wsUrl,
+              method: "WS",
+              source: "websocket",
+              timestamp: Date.now(),
+              durationMs: Math.round(performance.now() - handshakeStart),
+            });
+          },
+          { once: true },
+        );
 
         const originalSocketSend = this.send.bind(this);
         let sendCount = 0;
@@ -280,6 +307,7 @@
         super(url as string, eventSourceInitDict);
 
         const sseUrl = String(url);
+        const handshakeStart = performance.now();
 
         send({
           url: sseUrl,
@@ -292,6 +320,20 @@
           source: "eventsource",
           timestamp: Date.now(),
         });
+
+        this.addEventListener(
+          "open",
+          () => {
+            send({
+              url: sseUrl,
+              method: "SSE",
+              source: "eventsource",
+              timestamp: Date.now(),
+              durationMs: Math.round(performance.now() - handshakeStart),
+            });
+          },
+          { once: true },
+        );
 
         if (CAPTURE_REALTIME_MESSAGES) {
           let messageCount = 0;
