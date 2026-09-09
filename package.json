@@ -1,0 +1,31 @@
+{
+  "name": "api-qa-mentor",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "verify": "./scripts/verify.sh",
+    "verify:fast": "./scripts/verify.sh --fast",
+    "typecheck": "npx tsc --noEmit",
+    "test:unit": "vitest run \"src/**/*.unit.test.ts\" --passWithNoTests",
+    "test:int": "vitest run \"src/**/*.int.test.ts\" --fileParallelism=false --passWithNoTests",
+    "check:tests": "node .claude/hooks/check-tests.mjs --changed",
+    "check:dead-code": "./scripts/block-dead-code.sh --all",
+    "check:framework-rules": "node .claude/hooks/framework-rules.mjs",
+    "check:deps-arch": "npx --no-install dependency-cruiser --validate .dependency-cruiser.mjs src"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-import": "^2.32.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.0"
+  }
+}

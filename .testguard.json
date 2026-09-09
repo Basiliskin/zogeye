@@ -1,0 +1,12 @@
+{
+  "levels": [
+    { "match": "^src/domain/", "suffix": ".unit.test.ts", "level": "unit" },
+    { "match": "^src/application/", "suffix": ".unit.test.ts", "level": "unit" },
+    { "match": "^src/infrastructure/", "suffix": ".int.test.ts", "level": "integration" },
+    { "match": "^src/(cli|main)\\.ts$", "suffix": ".e2e.test.ts", "level": "e2e" },
+    { "match": ".*", "suffix": ".unit.test.ts", "level": "unit" }
+  ],
+  "testLocations": ["{dir}/{base}{suffix}", "tests/{base}{suffix}"],
+  "ignore": ["\\.d\\.ts$", "\\.test\\.ts$", "/types\\.ts$", "/ports\\.ts$", "/index\\.ts$"],
+  "requireSymbolMentions": true
+}
