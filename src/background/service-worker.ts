@@ -2,7 +2,16 @@
 import { Analyzer } from "../application/analyzer.js";
 import { RuleRegistry } from "../application/rule-registry.js";
 import { TabRequestStore } from "../infrastructure/tab-request-store.js";
+import { RecordingStore } from "../infrastructure/recording-store.js";
 import { findSlowRequests } from "../domain/performance.js";
+import {
+  createRecording,
+  updateRecordingMeta,
+  withSteps,
+  RecordingMetaError,
+  type Recording,
+  type RecordingStep,
+} from "../domain/recording.js";
 import type {
   AnalysisContext,
   PageFact,
@@ -12,6 +21,18 @@ import type {
 
 const analyzer = new Analyzer(new RuleRegistry());
 const store = new TabRequestStore();
+const recordings = new RecordingStore();
+
+const REC_SESSION_KEY = "api-qa.rec-session";
+
+interface RecordingSession {
+  tabId: number;
+  recordingId: string | null;
+  title: string;
+  startUrl: string;
+  steps: RecordingStep[];
+  startedAt: number;
+}
 
 const EMPTY_FACTS: Report["facts"] = { requests: 0, files: 0, dependencies: 0 };
 
@@ -21,14 +42,16 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.tabs.onRemoved.addListener((tabId: number) => {
   void store.clear(tabId);
+  void finalizeRecordingIfClosed(tabId);
 });
 
 // A full document navigation replaces the page, so its captured facts are
 // stale — reset them the moment the new main frame starts loading.
 chrome.webRequest?.onBeforeRequest?.addListener?.(
-  (details: { tabId: number; type: string }) => {
+  (details: { tabId: number; type: string; url: string }) => {
     if (details.tabId >= 0 && details.type === "main_frame") {
       void store.clear(details.tabId);
+      void recordNavigation(details.tabId, details.url);
     }
   },
   { urls: ["<all_urls>"] },
@@ -102,8 +125,203 @@ async function handleMessage(message: any, sender: any): Promise<unknown> {
       return { ok: true };
     }
 
+    case "recorder/should-arm": {
+      const session = await readRecordingSession();
+
+      return { arm: session != null && session.tabId === sender?.tab?.id };
+    }
+
+    case "recorder/step": {
+      const session = await readRecordingSession();
+      const tabId = sender?.tab?.id;
+
+      if (session && tabId === session.tabId && isRecordingStep(message.step)) {
+        session.steps.push(message.step);
+        await writeRecordingSession(session);
+      }
+
+      return { ok: true };
+    }
+
+    case "recorder/start": {
+      if (typeof message.tabId !== "number") {
+        return { ok: false, error: "No tab to record." };
+      }
+
+      await writeRecordingSession({
+        tabId: message.tabId,
+        recordingId:
+          typeof message.recordingId === "string" ? message.recordingId : null,
+        title: String(message.title ?? "") || "Untitled recording",
+        startUrl: String(message.url ?? ""),
+        steps: [],
+        startedAt: Date.now(),
+      });
+
+      await armTab(message.tabId);
+
+      return { ok: true };
+    }
+
+    case "recorder/stop": {
+      const recording = await finalizeRecordingSession();
+
+      return recording
+        ? { ok: true, recording }
+        : { ok: false, error: "No active recording." };
+    }
+
+    case "recorder/status": {
+      const session = await readRecordingSession();
+
+      return session
+        ? {
+            recording: true,
+            tabId: session.tabId,
+            stepCount: session.steps.length,
+            recordingId: session.recordingId,
+          }
+        : { recording: false };
+    }
+
+    case "recordings/list":
+      return { ok: true, recordings: await recordings.list() };
+
+    case "recordings/get":
+      return { ok: true, recording: await recordings.get(String(message.id)) };
+
+    case "recordings/rename": {
+      const existing = await recordings.get(String(message.id));
+
+      if (!existing) {
+        return { ok: false, error: "Recording not found." };
+      }
+
+      try {
+        const next = updateRecordingMeta(
+          existing,
+          { title: message.title, url: message.url },
+          Date.now(),
+        );
+        await recordings.save(next);
+
+        return { ok: true, recording: next };
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            error instanceof RecordingMetaError ? error.message : String(error),
+        };
+      }
+    }
+
+    case "recordings/delete": {
+      await recordings.delete(String(message.id));
+
+      return { ok: true };
+    }
+
     default:
       return { ok: false };
+  }
+}
+
+function isRecordingStep(value: unknown): value is RecordingStep {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as RecordingStep).type === "string"
+  );
+}
+
+async function readRecordingSession(): Promise<RecordingSession | null> {
+  const data = await chrome.storage.session.get(REC_SESSION_KEY);
+
+  return (data[REC_SESSION_KEY] as RecordingSession | undefined) ?? null;
+}
+
+async function writeRecordingSession(session: RecordingSession): Promise<void> {
+  await chrome.storage.session.set({ [REC_SESSION_KEY]: session });
+}
+
+async function clearRecordingSession(): Promise<void> {
+  await chrome.storage.session.remove(REC_SESSION_KEY);
+}
+
+async function armTab(tabId: number): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "recorder/arm" });
+  } catch {
+    // No recorder content script on this tab (chrome:// page, etc.).
+  }
+}
+
+async function disarmTab(tabId: number): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "recorder/disarm" });
+  } catch {
+    // Tab already gone or without a content script.
+  }
+}
+
+async function recordNavigation(tabId: number, url: string): Promise<void> {
+  const session = await readRecordingSession();
+
+  if (session?.tabId !== tabId) {
+    return;
+  }
+
+  const last = session.steps.at(-1);
+
+  // The initial load of the page the user pressed "record" on is implied by
+  // the recording's own start URL — skip that first navigate step.
+  if (session.steps.length === 0 && url === session.startUrl) {
+    return;
+  }
+
+  if (last?.type === "navigate" && last.url === url) {
+    return;
+  }
+
+  session.steps.push({ type: "navigate", url, timestamp: Date.now() });
+  await writeRecordingSession(session);
+}
+
+async function finalizeRecordingSession(): Promise<Recording | null> {
+  const session = await readRecordingSession();
+
+  if (!session) {
+    return null;
+  }
+
+  await disarmTab(session.tabId);
+
+  const now = Date.now();
+  const existing = session.recordingId
+    ? await recordings.get(session.recordingId)
+    : undefined;
+
+  const recording = existing
+    ? withSteps(existing, session.steps, now)
+    : createRecording({
+        id: crypto.randomUUID(),
+        title: session.title,
+        url: session.startUrl || "https://example.com",
+        steps: session.steps,
+        now,
+      });
+
+  await recordings.save(recording);
+  await clearRecordingSession();
+
+  return recording;
+}
+
+async function finalizeRecordingIfClosed(tabId: number): Promise<void> {
+  const session = await readRecordingSession();
+
+  if (session?.tabId === tabId) {
+    await finalizeRecordingSession();
   }
 }
 

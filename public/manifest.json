@@ -49,6 +49,16 @@
                 "content/page-scan.js"
             ],
             "run_at": "document_idle"
+        },
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "content/recorder.js"
+            ],
+            "run_at": "document_start",
+            "all_frames": false
         }
     ],
     "action": {

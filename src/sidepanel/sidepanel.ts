@@ -10,6 +10,24 @@ import type {
 
 const analyzer = new Analyzer(new RuleRegistry());
 
+// Tab bar: toggle the "Review" / "Recordings" panels.
+for (const tab of Array.from(
+  document.querySelectorAll<HTMLButtonElement>(".tab"),
+)) {
+  tab.addEventListener("click", () => {
+    for (const other of Array.from(
+      document.querySelectorAll<HTMLButtonElement>(".tab"),
+    )) {
+      const selected = other === tab;
+      other.setAttribute("aria-selected", String(selected));
+      const panel = document.getElementById(
+        other.getAttribute("aria-controls") ?? "",
+      );
+      if (panel) panel.hidden = !selected;
+    }
+  });
+}
+
 const output = document.getElementById("output") as HTMLDivElement;
 const networkButton = document.getElementById("scan-network");
 const clearButton = document.getElementById("clear-network");
@@ -98,7 +116,8 @@ filesInput?.addEventListener("change", async (event) => {
       break;
     }
 
-    const path = (file as { webkitRelativePath?: string }).webkitRelativePath || file.name;
+    const path =
+      (file as { webkitRelativePath?: string }).webkitRelativePath || file.name;
 
     if (/(^|\/)(node_modules|dist|build|coverage|\.git)\//.test(path)) {
       continue;
@@ -225,11 +244,7 @@ function renderReport(report: Report): void {
   const meta = el("div", "results-meta");
   meta.append(
     el("h2", undefined, "Review results"),
-    el(
-      "time",
-      undefined,
-      new Date(report.generatedAt).toLocaleString(),
-    ),
+    el("time", undefined, new Date(report.generatedAt).toLocaleString()),
   );
   output.append(meta);
 

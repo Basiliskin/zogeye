@@ -126,6 +126,7 @@ export default [
       'src/infrastructure/**/*.{ts,tsx}',
       'src/background/**/*.{ts,tsx}',
       'src/content/**/*.{ts,tsx}',
+      'src/sidepanel/**/*.{ts,tsx}',
     ],
     rules: {
       'no-restricted-imports': 'off',
@@ -140,6 +141,17 @@ export default [
       // re-applying prototype methods.
       '@typescript-eslint/unbound-method': 'off',
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      // DOM event listeners are routinely `async` — the browser ignores the
+      // returned promise by design, and every such handler here owns its
+      // try/catch.
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        { checksVoidReturn: false },
+      ],
+      // Stylistic-only rules that the browser-glue code predates; the strict
+      // domain/application core still enforces them.
+      '@typescript-eslint/prefer-nullish-coalescing': 'off',
+      '@typescript-eslint/array-type': 'off',
     },
   },
   {
