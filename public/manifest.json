@@ -18,8 +18,7 @@
     "content_scripts": [
         {
             "matches": [
-                "https://*/*",
-                "http://localhost/*"
+                "<all_urls>"
             ],
             "js": [
                 "content/relay.js"
@@ -29,8 +28,7 @@
         },
         {
             "matches": [
-                "https://*/*",
-                "http://localhost/*"
+                "<all_urls>"
             ],
             "js": [
                 "content/network-hook.js"
