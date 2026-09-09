@@ -12,6 +12,7 @@ import {
   type Recording,
   type RecordingStep,
 } from "../domain/recording.js";
+import type { SearchDocument } from "../domain/search.js";
 import type {
   AnalysisContext,
   PageFact,
@@ -221,9 +222,162 @@ async function handleMessage(message: any, sender: any): Promise<unknown> {
       return { ok: true };
     }
 
+    case "api-qa/search-corpus": {
+      if (typeof message.tabId !== "number") {
+        return { ok: false, error: "No active tab." };
+      }
+
+      return buildSearchCorpus(message.tabId);
+    }
+
     default:
       return { ok: false };
   }
+}
+
+const SEARCH_BODY_MAX = 200_000;
+
+function requestSearchText(request: RequestFact): string {
+  const lines: string[] = [`${request.method} ${request.url}`];
+
+  if (request.responseStatus != null) {
+    lines.push(`status: ${request.responseStatus}`);
+  }
+
+  for (const [key, value] of Object.entries(request.requestHeaders ?? {})) {
+    lines.push(`> ${key}: ${value}`);
+  }
+
+  for (const [key, value] of Object.entries(request.responseHeaders ?? {})) {
+    lines.push(`< ${key}: ${value}`);
+  }
+
+  if (request.body) {
+    lines.push("", request.body.slice(0, SEARCH_BODY_MAX));
+  }
+
+  return lines.join("\n");
+}
+
+async function safeGetTab(
+  tabId: number,
+): Promise<{ url?: string } | undefined> {
+  try {
+    return await chrome.tabs.get(tabId);
+  } catch {
+    return undefined;
+  }
+}
+
+async function collectSearchPage(tabId: number): Promise<
+  | {
+      html?: string;
+      inlineScripts?: string[];
+      local?: [string, string][];
+      session?: [string, string][];
+    }
+  | undefined
+> {
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, {
+      type: "api-qa/collect-search",
+    });
+
+    return response && typeof response === "object" && !response.error
+      ? response
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function buildSearchCorpus(tabId: number): Promise<{
+  ok: true;
+  documents: SearchDocument[];
+  tabUrl: string | undefined;
+  pageAvailable: boolean;
+  gatheredAt: number;
+}> {
+  const [requests, tab, page] = await Promise.all([
+    store.list(tabId),
+    safeGetTab(tabId),
+    collectSearchPage(tabId),
+  ]);
+
+  const documents: SearchDocument[] = [];
+
+  for (const request of requests) {
+    documents.push({
+      kind: "network",
+      label: `${request.method} ${request.url}`,
+      detail: request.source,
+      content: requestSearchText(request),
+    });
+  }
+
+  const tabUrl = tab?.url;
+
+  if (tabUrl && /^https?:/i.test(tabUrl)) {
+    try {
+      const cookies = await chrome.cookies.getAll({ url: tabUrl });
+
+      for (const cookie of cookies) {
+        documents.push({
+          kind: "cookie",
+          label: cookie.name,
+          detail: `${cookie.domain}${cookie.path}`,
+          content: `${cookie.name}=${cookie.value}`,
+        });
+      }
+    } catch {
+      // "cookies" permission missing or a restricted URL.
+    }
+  }
+
+  if (page) {
+    if (page.html) {
+      documents.push({
+        kind: "source",
+        label: "Page HTML",
+        detail: tabUrl,
+        content: page.html,
+      });
+    }
+
+    (page.inlineScripts ?? []).forEach((script, index) => {
+      if (script) {
+        documents.push({
+          kind: "source",
+          label: `Inline script #${index + 1}`,
+          content: script,
+        });
+      }
+    });
+
+    for (const [key, value] of page.local ?? []) {
+      documents.push({
+        kind: "localStorage",
+        label: key,
+        content: `${key}=${value}`,
+      });
+    }
+
+    for (const [key, value] of page.session ?? []) {
+      documents.push({
+        kind: "sessionStorage",
+        label: key,
+        content: `${key}=${value}`,
+      });
+    }
+  }
+
+  return {
+    ok: true,
+    documents,
+    tabUrl,
+    pageAvailable: page != null,
+    gatheredAt: Date.now(),
+  };
 }
 
 function isRecordingStep(value: unknown): value is RecordingStep {

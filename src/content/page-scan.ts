@@ -104,7 +104,7 @@
 
   const collectBlankLinks = (): string[] =>
     cap(
-      query('a[target=_blank]')
+      query("a[target=_blank]")
         .filter((el) => {
           const rel = (el.getAttribute("rel") ?? "").toLowerCase();
           return !rel.includes("noopener") && !rel.includes("noreferrer");
@@ -157,6 +157,73 @@
     return meta?.getAttribute("content") ?? undefined;
   };
 
+  const SEARCH_MESSAGE_TYPE = "api-qa/collect-search";
+  const SEARCH_HTML_MAX = 3_000_000;
+  const SEARCH_VALUE_MAX = 200_000;
+
+  const readStore = (store: Storage | null): Array<[string, string]> => {
+    const entries: Array<[string, string]> = [];
+
+    try {
+      if (!store) return entries;
+
+      for (let i = 0; i < store.length; i += 1) {
+        const key = store.key(i);
+        if (key === null) continue;
+        entries.push([
+          key,
+          String(store.getItem(key) ?? "").slice(0, SEARCH_VALUE_MAX),
+        ]);
+      }
+    } catch {
+      /* storage disabled in this context */
+    }
+
+    return entries;
+  };
+
+  const collectSearch = () => {
+    let html = "";
+    try {
+      html = document.documentElement.outerHTML.slice(0, SEARCH_HTML_MAX);
+    } catch {
+      /* detached document */
+    }
+
+    let inlineScripts: string[] = [];
+    try {
+      inlineScripts = Array.from(document.querySelectorAll("script:not([src])"))
+        .map((el) => (el.textContent ?? "").trim())
+        .filter((text) => text.length > 0)
+        .map((text) => text.slice(0, SEARCH_VALUE_MAX));
+    } catch {
+      /* ignore */
+    }
+
+    return {
+      url: pageUrl,
+      html,
+      inlineScripts,
+      documentCookie: (() => {
+        try {
+          return document.cookie;
+        } catch {
+          return "";
+        }
+      })(),
+      local: readStore(safeStorage(() => window.localStorage)),
+      session: readStore(safeStorage(() => window.sessionStorage)),
+    };
+  };
+
+  const safeStorage = (get: () => Storage): Storage | null => {
+    try {
+      return get();
+    } catch {
+      return null;
+    }
+  };
+
   const collect = () => ({
     url: pageUrl,
     scheme: location.protocol,
@@ -174,10 +241,17 @@
 
   chrome.runtime.onMessage.addListener(
     (message: any, _sender: any, sendResponse: (response: unknown) => void) => {
-      if (message?.type !== MESSAGE_TYPE) return undefined;
+      if (
+        message?.type !== MESSAGE_TYPE &&
+        message?.type !== SEARCH_MESSAGE_TYPE
+      ) {
+        return undefined;
+      }
 
       try {
-        sendResponse(collect());
+        sendResponse(
+          message.type === SEARCH_MESSAGE_TYPE ? collectSearch() : collect(),
+        );
       } catch (error) {
         sendResponse({ error: String(error) });
       }
