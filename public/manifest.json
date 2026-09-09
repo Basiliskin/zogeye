@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "API QA Mentor",
+    "name": "Zogeye",
     "version": "0.1.0",
     "description": "Deterministic, local QA reviewer for network API usage and static project checks.",
     "permissions": [
@@ -63,6 +63,6 @@
         }
     ],
     "action": {
-        "default_title": "API QA Mentor"
+        "default_title": "Zogeye"
     }
 }
