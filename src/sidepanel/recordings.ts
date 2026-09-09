@@ -1,8 +1,13 @@
 // src/sidepanel/recordings.ts
-// "Recordings" tab: CRUD over saved interaction flows. The background service
-// worker owns the recording session and storage; this module is pure glue —
-// it renders the list and relays start / stop / rename / delete messages.
+// "Recordings" tab: CRUD over saved interaction flows plus notes, labels and a
+// free-text/label filter. The background service worker owns the recording
+// session and storage; this module is pure glue — it renders the list and
+// relays start / stop / update / rename / delete messages.
 import {
+  collectLabels,
+  filterRecordings,
+  isSamePage,
+  parseLabels,
   validateRecordingMeta,
   type Recording,
   type RecordingStep,
@@ -13,14 +18,27 @@ const toggle = document.getElementById(
 ) as HTMLButtonElement | null;
 const status = document.getElementById("rec-status");
 const outlet = document.getElementById("rec-output");
+const filterBar = document.getElementById("rec-filter");
+const searchInput = document.getElementById(
+  "rec-search",
+) as HTMLInputElement | null;
+const filterLabels = document.getElementById("rec-filter-labels");
 
 let pollTimer: ReturnType<typeof setInterval> | undefined;
 let expandedId: string | null = null;
 let editingId: string | null = null;
 let confirmingId: string | null = null;
 
+let recordings: Recording[] = [];
+let query = "";
+const activeLabels = new Set<string>();
+
 if (toggle && status && outlet) {
   toggle.addEventListener("click", onToggle);
+  searchInput?.addEventListener("input", () => {
+    query = searchInput.value;
+    render();
+  });
   void syncStatus();
   void refresh();
   startPolling();
@@ -87,11 +105,22 @@ async function onToggle(): Promise<void> {
   await refresh();
 }
 
-async function reRecord(recording: Recording): Promise<void> {
+/**
+ * Re-records an existing flow in place — only when the active tab is on the
+ * same page the recording was captured on. Steps are replaced on Stop.
+ */
+async function updateInPlace(recording: Recording): Promise<void> {
   const tab = await activeTab();
 
   if (typeof tab.id !== "number") {
-    if (status) status.textContent = "Focus the tab you want to re-record.";
+    if (status) status.textContent = "Focus the tab you want to update.";
+    return;
+  }
+
+  if (!tab.url || !isSamePage(tab.url, recording.url)) {
+    if (status) {
+      status.textContent = `Open ${recording.url} in the active tab to update this recording.`;
+    }
     return;
   }
 
@@ -109,11 +138,14 @@ async function reRecord(recording: Recording): Promise<void> {
 
 async function saveMeta(
   recording: Recording,
-  title: string,
-  url: string,
+  fields: { title: string; url: string; notes: string; labels: string },
   errorSlot: HTMLElement,
 ): Promise<void> {
-  const problem = validateRecordingMeta(title, url);
+  const problem = validateRecordingMeta(
+    fields.title,
+    fields.url,
+    fields.notes,
+  );
 
   if (problem) {
     errorSlot.textContent = problem;
@@ -123,8 +155,10 @@ async function saveMeta(
   const response = await chrome.runtime.sendMessage({
     type: "recordings/rename",
     id: recording.id,
-    title,
-    url,
+    title: fields.title,
+    url: fields.url,
+    notes: fields.notes,
+    labels: parseLabels(fields.labels),
   });
 
   if (response?.ok === false) {
@@ -148,13 +182,31 @@ async function refresh(): Promise<void> {
   const response = await chrome.runtime.sendMessage({
     type: "recordings/list",
   });
-  const list: Recording[] = Array.isArray(response?.recordings)
-    ? response.recordings
-    : [];
+  recordings = Array.isArray(response?.recordings) ? response.recordings : [];
+
+  // Drop label filters that no longer exist on any recording.
+  const known = new Set(collectLabels(recordings));
+  for (const label of [...activeLabels]) {
+    if (!known.has(label)) activeLabels.delete(label);
+  }
+
+  render();
+}
+
+function render(): void {
+  if (!outlet) return;
+
+  if (filterBar) filterBar.hidden = recordings.length === 0;
+  renderFilterLabels();
+
+  const list = filterRecordings(recordings, {
+    query,
+    labels: [...activeLabels],
+  });
 
   outlet.textContent = "";
 
-  if (!list.length) {
+  if (!recordings.length) {
     outlet.append(
       emptyState(
         "No recordings yet",
@@ -164,9 +216,42 @@ async function refresh(): Promise<void> {
     return;
   }
 
+  if (!list.length) {
+    outlet.append(
+      emptyState(
+        "No matches",
+        "No recording matches the current filter.",
+      ),
+    );
+    return;
+  }
+
   const container = h("div", "rec-list");
   for (const recording of list) container.append(recordingCard(recording));
   outlet.append(container);
+}
+
+function renderFilterLabels(): void {
+  if (!filterLabels) return;
+
+  filterLabels.textContent = "";
+  for (const label of collectLabels(recordings)) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "rec-chip";
+    chip.textContent = label;
+    chip.classList.toggle("is-on", activeLabels.has(label));
+    chip.setAttribute(
+      "aria-pressed",
+      activeLabels.has(label) ? "true" : "false",
+    );
+    chip.addEventListener("click", () => {
+      if (activeLabels.has(label)) activeLabels.delete(label);
+      else activeLabels.add(label);
+      render();
+    });
+    filterLabels.append(chip);
+  }
 }
 
 function recordingCard(recording: Recording): HTMLElement {
@@ -185,27 +270,39 @@ function recordingCard(recording: Recording): HTMLElement {
     ),
   );
 
+  if (recording.labels.length) {
+    const tags = h("div", "rec-tags");
+    for (const label of recording.labels) {
+      tags.append(h("span", "rec-tag", label));
+    }
+    card.append(tags);
+  }
+
+  if (recording.notes) {
+    card.append(h("p", "rec-notes", recording.notes));
+  }
+
   const actions = h("div", "rec-actions");
   actions.append(
     actionButton(
       expandedId === recording.id ? "Hide steps" : "View steps",
       () => {
         expandedId = expandedId === recording.id ? null : recording.id;
-        void refresh();
+        render();
       },
     ),
-    actionButton("Re-record", () => void reRecord(recording)),
+    actionButton("Update", () => void updateInPlace(recording)),
     actionButton("Edit", () => {
       editingId = recording.id;
       confirmingId = null;
-      void refresh();
+      render();
     }),
     actionButton(
       "Delete",
       () => {
         confirmingId = recording.id;
         editingId = null;
-        void refresh();
+        render();
       },
       true,
     ),
@@ -241,7 +338,7 @@ function confirmRow(recording: Recording): HTMLElement {
   actions.append(
     actionButton("Cancel", () => {
       confirmingId = null;
-      void refresh();
+      render();
     }),
     actionButton("Delete", () => void remove(recording.id), true),
   );
@@ -262,21 +359,43 @@ function editForm(recording: Recording): HTMLElement {
   urlInput.value = recording.url;
   urlInput.id = `rec-url-${recording.id}`;
 
+  const labelsInput = document.createElement("input");
+  labelsInput.type = "text";
+  labelsInput.value = recording.labels.join(", ");
+  labelsInput.id = `rec-labels-${recording.id}`;
+  labelsInput.placeholder = "comma-separated";
+
+  const notesInput = document.createElement("textarea");
+  notesInput.value = recording.notes;
+  notesInput.id = `rec-notes-${recording.id}`;
+
   const error = h("span", "rec-error");
 
   form.append(labelFor(titleInput, "Title"), titleInput);
   form.append(labelFor(urlInput, "URL"), urlInput);
+  form.append(labelFor(labelsInput, "Labels"), labelsInput);
+  form.append(labelFor(notesInput, "Notes"), notesInput);
   form.append(error);
 
   const actions = h("div", "rec-actions");
   actions.append(
     actionButton(
       "Save",
-      () => void saveMeta(recording, titleInput.value, urlInput.value, error),
+      () =>
+        void saveMeta(
+          recording,
+          {
+            title: titleInput.value,
+            url: urlInput.value,
+            notes: notesInput.value,
+            labels: labelsInput.value,
+          },
+          error,
+        ),
     ),
     actionButton("Cancel", () => {
       editingId = null;
-      void refresh();
+      render();
     }),
   );
   form.append(actions);
@@ -316,7 +435,10 @@ function describeStep(step: RecordingStep): string {
   }
 }
 
-function labelFor(input: HTMLInputElement, text: string): HTMLLabelElement {
+function labelFor(
+  input: HTMLInputElement | HTMLTextAreaElement,
+  text: string,
+): HTMLLabelElement {
   const label = document.createElement("label");
   label.htmlFor = input.id;
   label.textContent = text;

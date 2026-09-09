@@ -204,7 +204,12 @@ async function handleMessage(message: any, sender: any): Promise<unknown> {
       try {
         const next = updateRecordingMeta(
           existing,
-          { title: message.title, url: message.url },
+          {
+            title: message.title,
+            url: message.url,
+            notes: message.notes,
+            labels: Array.isArray(message.labels) ? message.labels : undefined,
+          },
           Date.now(),
         );
         await recordings.save(next);

@@ -1,5 +1,5 @@
 // src/infrastructure/recording-store.ts
-import type { Recording } from "../domain/recording.js";
+import { hydrateRecording, type Recording } from "../domain/recording.js";
 
 const KEY = "api-qa.recordings";
 
@@ -12,13 +12,16 @@ export class RecordingStore {
   async list(): Promise<Recording[]> {
     const map = await this.readMap();
 
-    return Object.values(map).sort((a, b) => b.updatedAt - a.updatedAt);
+    return Object.values(map)
+      .map(hydrateRecording)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   async get(id: string): Promise<Recording | undefined> {
     const map = await this.readMap();
+    const found = map[id];
 
-    return map[id];
+    return found ? hydrateRecording(found) : undefined;
   }
 
   async save(recording: Recording): Promise<void> {
