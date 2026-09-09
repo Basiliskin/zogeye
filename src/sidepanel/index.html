@@ -1,45 +1,418 @@
 <!-- src/sidepanel/index.html -->
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>API QA Mentor</title>
   <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --surface: #ffffff;
+      --surface-2: #f0f2f5;
+      --border: #e2e5ea;
+      --border-strong: #d2d7df;
+      --text: #1b1f24;
+      --text-muted: #5c6570;
+      --text-faint: #8b94a0;
+      --accent: #3b5bdb;
+      --accent-hover: #364fc7;
+      --accent-soft: #edf0fe;
+      --focus: #4c6ef5;
+      --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
+
+      --sev-info-fg: #1c7ed6;   --sev-info-bg: #e7f5ff;
+      --sev-low-fg: #2b8a3e;    --sev-low-bg: #ebfbee;
+      --sev-medium-fg: #b8860b; --sev-medium-bg: #fff9db;
+      --sev-high-fg: #d9480f;   --sev-high-bg: #fff0e6;
+      --sev-critical-fg: #c92a2a; --sev-critical-bg: #ffe3e3;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16191d;
+        --surface: #1e2227;
+        --surface-2: #262b31;
+        --border: #2f353c;
+        --border-strong: #3b424a;
+        --text: #e8eaed;
+        --text-muted: #a5adb8;
+        --text-faint: #7a828d;
+        --accent: #748ffc;
+        --accent-hover: #91a7ff;
+        --accent-soft: #23283a;
+        --focus: #748ffc;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.4);
+
+        --sev-info-fg: #74c0fc;   --sev-info-bg: #1b2b3a;
+        --sev-low-fg: #8ce99a;    --sev-low-bg: #1c2e21;
+        --sev-medium-fg: #ffe066; --sev-medium-bg: #322d16;
+        --sev-high-fg: #ffa94d;   --sev-high-bg: #362415;
+        --sev-critical-fg: #ff8787; --sev-critical-bg: #3a1d1d;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+    }
+
     body {
-      font-family: sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 16px;
+      gap: 16px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .logo {
+      flex: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, var(--accent), #7048e8);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.5px;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+    }
+
+    .header p {
+      margin: 2px 0 0;
       font-size: 12px;
-      margin: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .card-body {
+      padding: 14px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-faint);
+      margin: 0 0 10px;
+    }
+
+    /* Buttons */
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
     }
 
     button {
-      margin-right: 8px;
+      font: inherit;
+      font-weight: 550;
+      border-radius: 8px;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease, transform 0.05s ease;
     }
 
-    #output {
-      white-space: pre-wrap;
-      border: 1px solid #ccc;
-      padding: 8px;
-      min-height: 320px;
+    button:active { transform: translateY(1px); }
+
+    button:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
     }
+
+    .btn-primary {
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border-strong);
+      color: var(--text-muted);
+    }
+
+    .btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+
+    /* File picker */
+    .filedrop {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border: 1px dashed var(--border-strong);
+      border-radius: 9px;
+      background: var(--surface-2);
+      cursor: pointer;
+      transition: border-color 0.12s ease, background 0.12s ease;
+    }
+
+    .filedrop:hover { border-color: var(--accent); }
+
+    .filedrop:focus-within {
+      border-color: var(--focus);
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .filedrop svg { flex: none; color: var(--text-faint); }
+
+    .filedrop-text strong { display: block; font-weight: 600; }
+    .filedrop-text span { color: var(--text-muted); font-size: 12px; }
+
+    .filedrop input { display: none; }
+
+    /* Summary grid */
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .stat {
+      background: var(--surface);
+      padding: 12px 14px;
+    }
+
+    .stat-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-faint);
+    }
+
+    .stat-value {
+      margin-top: 3px;
+      font-size: 18px;
+      font-weight: 680;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-value.sm { font-size: 13px; font-weight: 550; color: var(--text-muted); }
+
+    /* Exposure / severity badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 650;
+      text-transform: capitalize;
+      letter-spacing: 0.01em;
+    }
+
+    .badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .sev-info    { color: var(--sev-info-fg);     background: var(--sev-info-bg); }
+    .sev-low     { color: var(--sev-low-fg);      background: var(--sev-low-bg); }
+    .sev-medium  { color: var(--sev-medium-fg);   background: var(--sev-medium-bg); }
+    .sev-high    { color: var(--sev-high-fg);     background: var(--sev-high-bg); }
+    .sev-critical{ color: var(--sev-critical-fg); background: var(--sev-critical-bg); }
+
+    /* Findings */
+    .findings {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .finding {
+      border: 1px solid var(--border);
+      border-left: 3px solid currentColor;
+      border-radius: 9px;
+      padding: 11px 12px;
+      background: var(--surface);
+    }
+
+    .finding-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .finding-title {
+      font-weight: 620;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .finding-rule {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 10.5px;
+      color: var(--text-faint);
+      background: var(--surface-2);
+      padding: 1px 6px;
+      border-radius: 5px;
+    }
+
+    .finding-details {
+      margin: 6px 0 0;
+      color: var(--text-muted);
+      font-size: 12.5px;
+    }
+
+    .finding-evidence {
+      margin: 7px 0 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--surface-2);
+      border-radius: 6px;
+      padding: 6px 8px;
+      word-break: break-all;
+    }
+
+    .finding-evidence a { color: var(--accent); }
+
+    /* States */
+    .state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 8px;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+
+    .state svg { color: var(--text-faint); }
+    .state strong { color: var(--text); font-weight: 600; font-size: 13px; }
+    .state span { font-size: 12px; }
+
+    .spinner {
+      width: 22px;
+      height: 22px;
+      border: 2.5px solid var(--border-strong);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .results-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 12px;
+      gap: 8px;
+    }
+
+    .results-meta h2 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .results-meta time {
+      font-size: 11px;
+      color: var(--text-faint);
+    }
+
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
-  <h1>API QA Mentor</h1>
+  <div class="app">
+    <header class="header">
+      <div class="logo">A</div>
+      <div>
+        <h1>API QA Mentor</h1>
+        <p>Live review captures fetch / XHR / sendBeacon calls from the active tab. Static review scans selected local project files.</p>
+      </div>
+    </header>
 
-  <p>
-    Live review captures fetch/XHR/sendBeacon facts from the active tab.
-    Static review scans selected local project files.
-  </p>
+    <section class="card">
+      <div class="card-body">
+        <p class="section-label">Live network review</p>
+        <div class="actions">
+          <button id="scan-network" class="btn-primary" type="button">Review captured API usage</button>
+          <button id="clear-network" class="btn-ghost" type="button">Clear facts</button>
+        </div>
+      </div>
+    </section>
 
-  <button id="scan-network">Review captured network API usage</button>
-  <button id="clear-network">Clear network facts</button>
+    <section class="card">
+      <div class="card-body">
+        <p class="section-label">Static project scan</p>
+        <label class="filedrop" id="filedrop">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 20h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-7.5L10 4.5H4a1 1 0 0 0-1 1V19a1 1 0 0 0 1 1Z"/>
+          </svg>
+          <span class="filedrop-text">
+            <strong>Choose a project folder</strong>
+            <span id="filedrop-hint">Runs a deterministic offline scan &mdash; nothing leaves your machine</span>
+          </span>
+          <input id="files" type="file" multiple webkitdirectory>
+        </label>
+      </div>
+    </section>
 
-  <hr>
-
-  <p>Select project folder for deterministic static scan:</p>
-  <input id="files" type="file" multiple webkitdirectory>
-
-  <pre id="output">Ready.</pre>
+    <section class="card" style="flex:1;">
+      <div class="card-body" id="output">
+        <div class="state">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+          </svg>
+          <strong>No review yet</strong>
+          <span>Run a live review or pick a project folder to see findings.</span>
+        </div>
+      </div>
+    </section>
+  </div>
 
   <script type="module" src="./sidepanel.js"></script>
 </body>
