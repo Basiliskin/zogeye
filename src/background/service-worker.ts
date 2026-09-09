@@ -3,6 +3,8 @@ import { Analyzer } from "../application/analyzer.js";
 import { RuleRegistry } from "../application/rule-registry.js";
 import { TabRequestStore } from "../infrastructure/tab-request-store.js";
 import { RecordingStore } from "../infrastructure/recording-store.js";
+import { SnapshotStore } from "../infrastructure/snapshot-store.js";
+import { handleSnapshotMessage } from "./snapshot-handlers.js";
 import { findSlowRequests } from "../domain/performance.js";
 import {
   createRecording,
@@ -23,6 +25,7 @@ import type {
 const analyzer = new Analyzer(new RuleRegistry());
 const store = new TabRequestStore();
 const recordings = new RecordingStore();
+const snapshots = new SnapshotStore();
 
 const REC_SESSION_KEY = "api-qa.rec-session";
 
@@ -221,6 +224,14 @@ async function handleMessage(message: any, sender: any): Promise<unknown> {
 
       return { ok: true };
     }
+
+    case "snapshots/inventory":
+    case "snapshots/list":
+    case "snapshots/create":
+    case "snapshots/rename":
+    case "snapshots/delete":
+    case "snapshots/restore":
+      return handleSnapshotMessage(message, snapshots);
 
     case "api-qa/search-corpus": {
       if (typeof message.tabId !== "number") {

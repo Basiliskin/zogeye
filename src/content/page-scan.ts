@@ -182,6 +182,69 @@
     return entries;
   };
 
+  const STORAGE_MESSAGE_TYPE = "api-qa/collect-storage";
+  const APPLY_MESSAGE_TYPE = "api-qa/apply-storage";
+  const STORAGE_VALUE_MAX = 512 * 1024;
+
+  const readStorageFull = (store: Storage | null): Array<[string, string]> => {
+    const entries: Array<[string, string]> = [];
+
+    try {
+      if (!store) return entries;
+
+      for (let i = 0; i < store.length; i += 1) {
+        const key = store.key(i);
+        if (key === null) continue;
+        entries.push([
+          key,
+          String(store.getItem(key) ?? "").slice(0, STORAGE_VALUE_MAX),
+        ]);
+      }
+    } catch {
+      /* storage disabled in this context */
+    }
+
+    return entries;
+  };
+
+  const collectStorage = () => ({
+    url: pageUrl,
+    origin: pageOrigin,
+    local: readStorageFull(safeStorage(() => window.localStorage)),
+    session: readStorageFull(safeStorage(() => window.sessionStorage)),
+  });
+
+  const applyStorage = (payload: {
+    local?: Array<[string, string]>;
+    session?: Array<[string, string]>;
+  }) => {
+    const write = (
+      get: () => Storage,
+      entries: Array<[string, string]> | undefined,
+    ): { written: number; error?: string } => {
+      const store = safeStorage(get);
+      if (!store) return { written: 0, error: "unavailable" };
+
+      try {
+        store.clear();
+        let written = 0;
+        for (const [key, value] of entries ?? []) {
+          store.setItem(key, value);
+          written += 1;
+        }
+        return { written };
+      } catch (error) {
+        return { written: 0, error: String(error) };
+      }
+    };
+
+    return {
+      ok: true,
+      local: write(() => window.localStorage, payload.local),
+      session: write(() => window.sessionStorage, payload.session),
+    };
+  };
+
   const collectSearch = () => {
     let html = "";
     try {
@@ -239,19 +302,37 @@
     metaReferrer: metaReferrer(),
   });
 
+  const KNOWN_TYPES = new Set([
+    MESSAGE_TYPE,
+    SEARCH_MESSAGE_TYPE,
+    STORAGE_MESSAGE_TYPE,
+    APPLY_MESSAGE_TYPE,
+  ]);
+
+  const respondTo = (message: any): unknown => {
+    switch (message.type) {
+      case SEARCH_MESSAGE_TYPE:
+        return collectSearch();
+      case STORAGE_MESSAGE_TYPE:
+        return collectStorage();
+      case APPLY_MESSAGE_TYPE:
+        return applyStorage({
+          local: message.local,
+          session: message.session,
+        });
+      default:
+        return collect();
+    }
+  };
+
   chrome.runtime.onMessage.addListener(
     (message: any, _sender: any, sendResponse: (response: unknown) => void) => {
-      if (
-        message?.type !== MESSAGE_TYPE &&
-        message?.type !== SEARCH_MESSAGE_TYPE
-      ) {
+      if (!KNOWN_TYPES.has(message?.type)) {
         return undefined;
       }
 
       try {
-        sendResponse(
-          message.type === SEARCH_MESSAGE_TYPE ? collectSearch() : collect(),
-        );
+        sendResponse(respondTo(message));
       } catch (error) {
         sendResponse({ error: String(error) });
       }

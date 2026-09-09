@@ -648,6 +648,152 @@
       border-radius: 3px;
       padding: 0 1px;
     }
+
+    /* Snapshots */
+    .snap-form {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .snap-form label.snap-field-label {
+      font-size: 11px;
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-faint);
+    }
+
+    .snap-form input[type="text"] {
+      font: inherit;
+      padding: 7px 9px;
+      border: 1px solid var(--border-strong);
+      border-radius: 7px;
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .snap-form input:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+    .snap-scope {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .snap-picker { position: relative; display: flex; flex-direction: column; gap: 6px; }
+
+    .snap-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .snap-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 4px 2px 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .snap-chip button {
+      all: unset;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 3px;
+      border-radius: 999px;
+      color: var(--accent);
+    }
+
+    .snap-chip button:hover { background: rgba(0, 0, 0, 0.08); }
+
+    .snap-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      margin-top: 4px;
+      max-height: 220px;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .snap-option {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      width: 100%;
+      padding: 7px 10px;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      text-align: left;
+      font: inherit;
+      color: var(--text);
+    }
+
+    .snap-option:hover,
+    .snap-option[data-active="true"] { background: var(--surface-2); }
+
+    .snap-option-area {
+      flex: none;
+      font-size: 10px;
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+      min-width: 82px;
+    }
+
+    .snap-option-key { word-break: break-all; }
+
+    .snap-menu-empty { padding: 8px 10px; font-size: 12px; color: var(--text-muted); }
+
+    .snap-error { color: var(--sev-critical-fg); font-size: 12px; }
+
+    .snap-item {
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 11px 12px;
+      background: var(--surface);
+    }
+
+    .snap-item h3 { margin: 0; font-size: 13px; font-weight: 620; }
+
+    .snap-item .snap-origin {
+      display: block;
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--text-faint);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      word-break: break-all;
+    }
+
+    .snap-item .snap-meta { margin-top: 4px; font-size: 11px; color: var(--text-muted); }
+
+    .snap-counts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+
+    .snap-count {
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--surface-2);
+      color: var(--text-muted);
+    }
   </style>
 </head>
 <body>
@@ -664,6 +810,7 @@
       <button class="tab" id="tab-review" role="tab" aria-selected="true" aria-controls="panel-review" type="button">Review</button>
       <button class="tab" id="tab-recordings" role="tab" aria-selected="false" aria-controls="panel-recordings" type="button">Recordings</button>
       <button class="tab" id="tab-search" role="tab" aria-selected="false" aria-controls="panel-search" type="button">Search</button>
+      <button class="tab" id="tab-snapshots" role="tab" aria-selected="false" aria-controls="panel-snapshots" type="button">Snapshots</button>
     </nav>
 
     <div class="panel" id="panel-review" role="tabpanel" aria-labelledby="tab-review">
@@ -764,10 +911,36 @@
         </div>
       </section>
     </div>
+
+    <div class="panel" id="panel-snapshots" role="tabpanel" aria-labelledby="tab-snapshots" hidden>
+      <section class="card">
+        <div class="card-body">
+          <p class="section-label">Storage snapshots</p>
+          <div class="rec-toolbar">
+            <button id="snap-new" class="btn-primary" type="button">New snapshot</button>
+            <span class="rec-status" id="snap-status">Captures the active tab's localStorage, sessionStorage and cookies.</span>
+          </div>
+          <div id="snap-form" class="snap-form" hidden></div>
+        </div>
+      </section>
+
+      <section class="card" style="flex:1;">
+        <div class="card-body" id="snap-output">
+          <div class="state">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><rect x="3" y="7" width="18" height="13" rx="1.5"/><path d="M8 11h8"/>
+            </svg>
+            <strong>No snapshots yet</strong>
+            <span>Press New snapshot to capture the current tab's storage.</span>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 
   <script type="module" src="./sidepanel.js"></script>
   <script type="module" src="./recordings.js"></script>
   <script type="module" src="./search.js"></script>
+  <script type="module" src="./snapshots.js"></script>
 </body>
 </html>
