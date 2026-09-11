@@ -56,6 +56,16 @@
     return undefined;
   };
 
+  const responsePreview = async (
+    response: Response,
+  ): Promise<string | undefined> => {
+    try {
+      return (await response.clone().text()).slice(0, MAX_BODY);
+    } catch {
+      return undefined;
+    }
+  };
+
   const originalFetch = window.fetch.bind(window);
 
   (window as any).fetch = async function (
@@ -93,12 +103,15 @@
         });
       } catch {}
 
+      const responseBody = await responsePreview(response);
+
       send({
         url,
         method,
         requestHeaders,
         responseStatus: response.status,
         responseHeaders,
+        responseBody,
         body,
         source: "fetch",
         timestamp,
@@ -186,12 +199,18 @@
           }
         } catch {}
 
+        const responseBody =
+          typeof this.responseText === "string"
+            ? this.responseText.slice(0, MAX_BODY)
+            : undefined;
+
         send({
           url: state.url,
           method: state.method,
           requestHeaders: state.requestHeaders,
           responseStatus: this.status,
           responseHeaders,
+          responseBody,
           body: bodyPreview(body),
           source: "xhr",
           timestamp: Date.now(),

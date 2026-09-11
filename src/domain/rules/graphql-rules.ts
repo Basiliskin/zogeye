@@ -5,7 +5,7 @@ import { headerValue, isInsecureHttpUrl, parseUrlSafe } from "../web-utils.js";
 
 const GRAPHQL_PATH = /graphql/i;
 const GRAPHQL_BODY =
-  /(\"(query|mutation|operationName|variables)\"\s*:|\b(query|mutation|subscription)\s*[({])/i;
+  /("(query|mutation|operationName|variables)"\s*:|\b(query|mutation|subscription)\s*[({])/i;
 const GRAPHQL_INTROSPECTION = /__schema|introspection/i;
 
 function decodedUrl(value: string): string {
@@ -16,7 +16,7 @@ function decodedUrl(value: string): string {
   }
 }
 
-function isGraphqlRequest(request: RequestFact): boolean {
+export function isGraphqlRequest(request: RequestFact): boolean {
   const url = parseUrlSafe(request.url);
 
   if (url && GRAPHQL_PATH.test(url.pathname)) {

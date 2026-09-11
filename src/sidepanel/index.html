@@ -371,13 +371,17 @@
     }
 
     .tab {
-      flex: 1;
+      flex: 1 1 0;
+      min-width: 0;
       background: transparent;
       border: 1px solid transparent;
       color: var(--text-muted);
       font-weight: 600;
-      padding: 7px 12px;
+      padding: 7px 8px;
       border-radius: 7px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .tab:hover { color: var(--text); }
@@ -591,6 +595,63 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
+
+    /* GraphQL traffic */
+    .graphql-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .graphql-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 11px 12px;
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .graphql-item:hover { border-color: var(--accent); background: var(--accent-soft); }
+
+    .graphql-item-head { display: flex; gap: 8px; align-items: center; }
+    .graphql-method, .graphql-status {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .graphql-method { color: var(--accent); }
+    .graphql-status { color: var(--text-muted); }
+    .graphql-url {
+      display: block;
+      margin-top: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      font-weight: 600;
+      word-break: break-all;
+    }
+    .graphql-meta { display: block; margin-top: 4px; font-size: 11px; color: var(--text-muted); }
+
+    dialog {
+      width: min(680px, calc(100vw - 28px));
+      max-height: calc(100vh - 28px);
+      padding: 0;
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+    }
+    dialog::backdrop { background: rgba(0, 0, 0, 0.42); }
+    .graphql-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border-bottom: 1px solid var(--border); }
+    .graphql-dialog-head h2 { margin: 0; font-size: 14px; }
+    .graphql-dialog-head button { padding: 4px 9px; }
+    .graphql-dialog-body { padding: 14px; overflow: auto; }
+    .graphql-detail-url { margin-bottom: 14px; color: var(--url); font: 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all; }
+    .graphql-detail-section + .graphql-detail-section { margin-top: 16px; }
+    .graphql-detail-section h3 { margin: 0 0 8px; font-size: 12px; }
+    .graphql-detail-row + .graphql-detail-row { margin-top: 8px; }
+    .graphql-detail-row strong { display: block; margin-bottom: 3px; color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .graphql-detail-row pre { margin: 0; padding: 8px; overflow: auto; white-space: pre-wrap; word-break: break-word; border-radius: 6px; background: var(--surface-2); color: var(--text-muted); }
 
     .rec-form textarea {
       font: inherit;
@@ -991,6 +1052,7 @@
 
     <nav class="tabs" role="tablist">
       <button class="tab" id="tab-review" role="tab" aria-selected="true" aria-controls="panel-review" type="button">Review</button>
+      <button class="tab" id="tab-graphql" role="tab" aria-selected="false" aria-controls="panel-graphql" type="button">GraphQL</button>
       <button class="tab" id="tab-recordings" role="tab" aria-selected="false" aria-controls="panel-recordings" type="button">Recordings</button>
       <button class="tab" id="tab-search" role="tab" aria-selected="false" aria-controls="panel-search" type="button">Search</button>
       <button class="tab" id="tab-snapshots" role="tab" aria-selected="false" aria-controls="panel-snapshots" type="button">Snapshots</button>
@@ -1034,6 +1096,23 @@
         </div>
       </div>
     </section>
+    </div>
+
+    <div class="panel" id="panel-graphql" role="tabpanel" aria-labelledby="tab-graphql" hidden>
+      <section class="card">
+        <div class="card-body">
+          <p class="section-label">GraphQL traffic</p>
+          <div class="rec-toolbar">
+            <button id="graphql-refresh" class="btn-primary" type="button">Refresh calls</button>
+            <span class="rec-status" id="graphql-status">Loading captured GraphQL calls…</span>
+          </div>
+        </div>
+      </section>
+      <section class="card" style="flex:1;">
+        <div class="card-body" id="graphql-output">
+          <div class="state"><strong>No GraphQL calls yet</strong><span>Browse the active tab, then refresh to inspect captured calls.</span></div>
+        </div>
+      </section>
     </div>
 
     <div class="panel" id="panel-recordings" role="tabpanel" aria-labelledby="tab-recordings" hidden>
@@ -1129,9 +1208,18 @@
     </div>
   </div>
 
+  <dialog id="graphql-dialog" aria-labelledby="graphql-dialog-title">
+    <div class="graphql-dialog-head">
+      <h2 id="graphql-dialog-title">GraphQL call</h2>
+      <button id="graphql-dialog-close" class="btn-ghost" type="button">Close</button>
+    </div>
+    <div id="graphql-dialog-body" class="graphql-dialog-body"></div>
+  </dialog>
+
   <script type="module" src="./sidepanel.js"></script>
   <script type="module" src="./recordings.js"></script>
   <script type="module" src="./search.js"></script>
   <script type="module" src="./snapshots.js"></script>
+  <script type="module" src="./graphql.js"></script>
 </body>
 </html>

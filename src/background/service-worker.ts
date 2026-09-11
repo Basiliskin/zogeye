@@ -22,6 +22,7 @@ import type {
   Report,
   RequestFact,
 } from "../domain/models.js";
+import { isGraphqlRequest } from "../domain/rules/graphql-rules.js";
 
 const analyzer = new Analyzer(new RuleRegistry());
 const store = new TabRequestStore();
@@ -120,6 +121,15 @@ async function handleMessage(message: any, sender: any): Promise<unknown> {
       }
 
       return buildReport(message.tabId);
+    }
+
+    case "api-qa/get-graphql": {
+      if (typeof message.tabId !== "number") {
+        return { ok: true, requests: [] };
+      }
+
+      const requests = await store.list(message.tabId);
+      return { ok: true, requests: requests.filter(isGraphqlRequest) };
     }
 
     case "api-qa/clear": {
@@ -275,6 +285,10 @@ function requestSearchText(request: RequestFact): string {
 
   if (request.body) {
     lines.push("", request.body.slice(0, SEARCH_BODY_MAX));
+  }
+
+  if (request.responseBody) {
+    lines.push("", request.responseBody.slice(0, SEARCH_BODY_MAX));
   }
 
   return lines.join("\n");
@@ -507,6 +521,7 @@ function normalize(request: any): RequestFact {
     requestHeaders: request.requestHeaders,
     responseStatus: request.responseStatus,
     responseHeaders: request.responseHeaders,
+    responseBody: request.responseBody,
     body: request.body,
     source: request.source,
     timestamp: Number(request.timestamp ?? Date.now()),

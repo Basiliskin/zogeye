@@ -15,6 +15,7 @@ export interface RequestFact {
   requestHeaders?: Record<string, string> | undefined;
   responseStatus?: number | undefined;
   responseHeaders?: Record<string, string> | undefined;
+  responseBody?: string | undefined;
   body?: string | undefined;
   source?: string | undefined;
   timestamp: number;
