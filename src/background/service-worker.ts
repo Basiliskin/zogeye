@@ -132,6 +132,14 @@ async function handleMessage(message: any, sender: any): Promise<unknown> {
       return { ok: true, requests: requests.filter(isGraphqlRequest) };
     }
 
+    case "api-qa/get-network": {
+      if (typeof message.tabId !== "number") {
+        return { ok: true, requests: [] };
+      }
+
+      return { ok: true, requests: await store.list(message.tabId) };
+    }
+
     case "api-qa/clear": {
       if (typeof message.tabId === "number") {
         await store.clear(message.tabId);

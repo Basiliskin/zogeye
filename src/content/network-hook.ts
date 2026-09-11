@@ -212,7 +212,7 @@
           responseHeaders,
           responseBody,
           body: bodyPreview(body),
-          source: "xhr",
+          source: this.status === 0 ? "xhr-error" : "xhr",
           timestamp: Date.now(),
           durationMs: Math.round(performance.now() - state.startedAt),
         });

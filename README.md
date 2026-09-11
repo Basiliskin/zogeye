@@ -22,6 +22,7 @@ live in `chrome.storage` and in-memory stores. Same inputs, same findings, every
 
 - **Deterministic by design:** every scan produces a `Report` with a numeric **risk score** and an **exposure** tier (`low` / `medium` / `high` / `critical`), using fixed severity weights (`info` 0, `low` 1, `medium` 5, `high` 20, `critical` 50) and de-duplicated findings.
 - **Network & API review:** flags non-HTTPS API traffic, credentials in query params, mutations sent via GET, JSON bodies without `application/json`, and wildcard CORS with `Access-Control-Allow-Credentials: true` — over captured `fetch` / XHR / `sendBeacon` / WebSocket / EventSource traffic.
+- **Network traffic browser:** lists every completed or failed network call for the active tab, with free-text search across URLs, headers and bodies; selecting a call opens the request and response detail dialog.
 - **Request hygiene:** catches JWTs and HTTP Basic credentials in the URL, session/OAuth tokens as URL params, PII in the query string, and `Authorization` sent over cleartext HTTP.
 - **GraphQL & realtime:** GraphQL over HTTP, queries in GET URLs, mutations via GET, introspection in requests, deprecated subscription transport, and insecure `ws://` sockets.
 - **GraphQL traffic browser:** lists captured GraphQL calls for the active tab and opens each call in a detail dialog with request headers/body and response status/headers/body previews.

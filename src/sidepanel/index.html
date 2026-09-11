@@ -405,6 +405,19 @@
 
     .rec-status { font-size: 12px; color: var(--text-muted); }
 
+    .network-search {
+      width: 100%;
+      margin-top: 12px;
+      font: inherit;
+      padding: 8px 10px;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .network-search:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
     .btn-record {
       background: var(--accent);
       border: 1px solid var(--accent);
@@ -1052,6 +1065,7 @@
 
     <nav class="tabs" role="tablist">
       <button class="tab" id="tab-review" role="tab" aria-selected="true" aria-controls="panel-review" type="button">Review</button>
+      <button class="tab" id="tab-network" role="tab" aria-selected="false" aria-controls="panel-network" type="button">Network</button>
       <button class="tab" id="tab-graphql" role="tab" aria-selected="false" aria-controls="panel-graphql" type="button">GraphQL</button>
       <button class="tab" id="tab-recordings" role="tab" aria-selected="false" aria-controls="panel-recordings" type="button">Recordings</button>
       <button class="tab" id="tab-search" role="tab" aria-selected="false" aria-controls="panel-search" type="button">Search</button>
@@ -1096,6 +1110,24 @@
         </div>
       </div>
     </section>
+    </div>
+
+    <div class="panel" id="panel-network" role="tabpanel" aria-labelledby="tab-network" hidden>
+      <section class="card">
+        <div class="card-body">
+          <p class="section-label">Network traffic</p>
+          <div class="rec-toolbar">
+            <button id="network-refresh" class="btn-primary" type="button">Refresh calls</button>
+            <span class="rec-status" id="network-status">Loading captured network calls…</span>
+          </div>
+          <input id="network-search" class="network-search" type="search" placeholder="Search URL, method, headers, request or response body…" autocomplete="off" spellcheck="false">
+        </div>
+      </section>
+      <section class="card" style="flex:1;">
+        <div class="card-body" id="network-output">
+          <div class="state"><strong>No completed calls yet</strong><span>Completed calls and transport errors will appear here.</span></div>
+        </div>
+      </section>
     </div>
 
     <div class="panel" id="panel-graphql" role="tabpanel" aria-labelledby="tab-graphql" hidden>
@@ -1221,5 +1253,6 @@
   <script type="module" src="./search.js"></script>
   <script type="module" src="./snapshots.js"></script>
   <script type="module" src="./graphql.js"></script>
+  <script type="module" src="./network.js"></script>
 </body>
 </html>

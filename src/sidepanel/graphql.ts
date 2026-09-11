@@ -1,4 +1,5 @@
 import { isGraphqlRequest } from "../domain/rules/graphql-rules.js";
+import { hasNetworkOutcome } from "../domain/traffic/network-outcome.js";
 import type { RequestFact } from "../domain/models.js";
 
 const outlet = document.getElementById("graphql-output");
@@ -18,6 +19,19 @@ if (outlet) {
     .getElementById("tab-graphql")
     ?.addEventListener("click", () => void refresh());
   dialogClose?.addEventListener("click", () => dialog?.close());
+  document.addEventListener("api-qa/show-request", (event) => {
+    const detail = (
+      event as CustomEvent<{
+        request: RequestFact;
+        number: number;
+        title?: string;
+      }>
+    ).detail;
+
+    if (detail) {
+      showDetails(detail.request, detail.number, detail.title);
+    }
+  });
   refreshButton?.addEventListener("click", () => void refresh());
   void refresh();
 }
@@ -42,7 +56,10 @@ async function refresh(): Promise<void> {
     tabId,
   });
   const captured = Array.isArray(response?.requests) ? response.requests : [];
-  requests = captured.filter(isGraphqlRequest);
+  requests = captured.filter(
+    (request: RequestFact) =>
+      isGraphqlRequest(request) && hasNetworkOutcome(request),
+  );
   render();
 }
 
@@ -83,9 +100,11 @@ function graphqlItem(request: RequestFact, number: number): HTMLElement {
     text(
       "span",
       "graphql-status",
-      request.responseStatus == null
-        ? "No response"
-        : String(request.responseStatus),
+      request.source?.endsWith("-error")
+        ? "Error"
+        : request.responseStatus == null
+          ? "No response"
+          : String(request.responseStatus),
     ),
   );
 
@@ -102,10 +121,14 @@ function graphqlItem(request: RequestFact, number: number): HTMLElement {
   return item;
 }
 
-function showDetails(request: RequestFact, number: number): void {
+function showDetails(
+  request: RequestFact,
+  number: number,
+  title = "GraphQL call",
+): void {
   if (!dialog || !dialogTitle || !dialogBody) return;
 
-  dialogTitle.textContent = `GraphQL call #${number}`;
+  dialogTitle.textContent = `${title} #${number}`;
   dialogBody.textContent = "";
   dialogBody.append(
     text("div", "graphql-detail-url", request.url),
@@ -117,9 +140,11 @@ function showDetails(request: RequestFact, number: number): void {
     detailSection("Response", [
       [
         "Status",
-        request.responseStatus == null
-          ? "No response"
-          : String(request.responseStatus),
+        request.source?.endsWith("-error")
+          ? "Transport error"
+          : request.responseStatus == null
+            ? "No response"
+            : String(request.responseStatus),
       ],
       ["Headers", formatHeaders(request.responseHeaders)],
       ["Body", request.responseBody ?? "(empty or unavailable)"],
