@@ -145,6 +145,22 @@ function showDetails(
   ]);
 
   if (isGraphqlRequest(request)) {
+    const urlRow = document.createElement("div");
+    urlRow.className = "graphql-detail-row";
+    urlRow.append(text("strong", undefined, "URL and query parameters"));
+
+    const urlEditor = document.createElement("input");
+    urlEditor.className = "graphql-url-editor";
+    urlEditor.type = "text";
+    urlEditor.value = request.url;
+    urlEditor.spellcheck = false;
+    urlEditor.setAttribute(
+      "aria-label",
+      "Edited GraphQL URL and query parameters",
+    );
+    urlRow.append(urlEditor);
+    requestSection.prepend(urlRow);
+
     const methodRow = document.createElement("div");
     methodRow.className = "graphql-detail-row";
     methodRow.append(text("strong", undefined, "Method"));
@@ -199,6 +215,7 @@ function showDetails(
         void replayGraphql(
           request,
           tabId,
+          urlEditor.value,
           methodEditor.value,
           bodyEditor.value,
           runButton,
@@ -226,12 +243,22 @@ function showDetails(
 async function replayGraphql(
   request: RequestFact,
   tabId: number | undefined,
+  url: string,
   method: string,
   body: string,
   button: HTMLButtonElement,
   status: HTMLElement,
   output: HTMLElement,
 ): Promise<void> {
+  const editedUrl = url.trim();
+  if (!editedUrl) {
+    status.textContent = "URL is required.";
+    output.replaceChildren(
+      detailSection("Edited response", [["Error", status.textContent]]),
+    );
+    return;
+  }
+
   if (tabId == null) {
     status.textContent = "No active tab.";
     output.replaceChildren(
@@ -249,7 +276,7 @@ async function replayGraphql(
       type: "api-qa/replay-graphql",
       tabId,
       request: {
-        url: request.url,
+        url: editedUrl,
         method,
         requestHeaders: request.requestHeaders,
         body,
