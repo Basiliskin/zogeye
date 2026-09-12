@@ -132,6 +132,24 @@ async function handleMessage(message: any, sender: any): Promise<unknown> {
       return { ok: true, requests: requests.filter(isGraphqlRequest) };
     }
 
+    case "api-qa/replay-graphql": {
+      if (
+        typeof message.tabId !== "number" ||
+        !isReplayRequest(message.request)
+      ) {
+        return { ok: false, error: "Invalid GraphQL request." };
+      }
+
+      try {
+        return await chrome.tabs.sendMessage(message.tabId, {
+          type: "api-qa/replay-graphql",
+          request: message.request,
+        });
+      } catch (error) {
+        return { ok: false, error: String(error) };
+      }
+    }
+
     case "api-qa/get-network": {
       if (typeof message.tabId !== "number") {
         return { ok: true, requests: [] };
@@ -520,6 +538,23 @@ async function finalizeRecordingIfClosed(tabId: number): Promise<void> {
   if (session?.tabId === tabId) {
     await finalizeRecordingSession();
   }
+}
+
+function isReplayRequest(value: any): value is {
+  url: string;
+  method: string;
+  requestHeaders?: Record<string, string>;
+  body?: string;
+} {
+  return (
+    value != null &&
+    typeof value.url === "string" &&
+    value.url.length > 0 &&
+    typeof value.method === "string" &&
+    (value.requestHeaders == null ||
+      typeof value.requestHeaders === "object") &&
+    (value.body == null || typeof value.body === "string")
+  );
 }
 
 function normalize(request: any): RequestFact {

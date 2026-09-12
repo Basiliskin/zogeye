@@ -665,6 +665,12 @@
     .graphql-detail-row + .graphql-detail-row { margin-top: 8px; }
     .graphql-detail-row strong { display: block; margin-bottom: 3px; color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
     .graphql-detail-row pre { margin: 0; padding: 8px; overflow: auto; white-space: pre-wrap; word-break: break-word; border-radius: 6px; background: var(--surface-2); color: var(--text-muted); }
+    .graphql-payload-editor { display: block; width: 100%; min-height: 150px; resize: vertical; padding: 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .graphql-payload-editor:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+    .graphql-method-editor { width: 100%; padding: 7px 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; }
+    .graphql-method-editor:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+    .graphql-replay-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+    .graphql-replay-status { color: var(--text-muted); font-size: 12px; }
 
     .rec-form textarea {
       font: inherit;

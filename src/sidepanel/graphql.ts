@@ -13,6 +13,7 @@ const dialogClose = document.getElementById("graphql-dialog-close");
 const refreshButton = document.getElementById("graphql-refresh");
 
 let requests: RequestFact[] = [];
+let requestsTabId: number | undefined;
 
 if (outlet) {
   document
@@ -29,7 +30,9 @@ if (outlet) {
     ).detail;
 
     if (detail) {
-      showDetails(detail.request, detail.number, detail.title);
+      void activeTabId().then((tabId) =>
+        showDetails(detail.request, detail.number, tabId, detail.title),
+      );
     }
   });
   refreshButton?.addEventListener("click", () => void refresh());
@@ -46,11 +49,13 @@ async function refresh(): Promise<void> {
 
   const tabId = await activeTabId();
   if (tabId == null) {
+    requestsTabId = undefined;
     requests = [];
     render();
     return;
   }
 
+  requestsTabId = tabId;
   const response = await chrome.runtime.sendMessage({
     type: "api-qa/get-graphql",
     tabId,
@@ -82,16 +87,20 @@ function render(): void {
     .slice()
     .reverse()
     .forEach((request, index) =>
-      list.append(graphqlItem(request, requests.length - index)),
+      list.append(graphqlItem(request, requests.length - index, requestsTabId)),
     );
   outlet.append(list);
 }
 
-function graphqlItem(request: RequestFact, number: number): HTMLElement {
+function graphqlItem(
+  request: RequestFact,
+  number: number,
+  tabId: number | undefined,
+): HTMLElement {
   const item = document.createElement("button");
   item.type = "button";
   item.className = "graphql-item";
-  item.addEventListener("click", () => showDetails(request, number));
+  item.addEventListener("click", () => showDetails(request, number, tabId));
 
   const head = document.createElement("span");
   head.className = "graphql-item-head";
@@ -124,33 +133,168 @@ function graphqlItem(request: RequestFact, number: number): HTMLElement {
 function showDetails(
   request: RequestFact,
   number: number,
+  tabId: number | undefined,
   title = "GraphQL call",
 ): void {
   if (!dialog || !dialogTitle || !dialogBody) return;
 
   dialogTitle.textContent = `${title} #${number}`;
   dialogBody.textContent = "";
+  const requestSection = detailSection("Request", [
+    ["Headers", formatHeaders(request.requestHeaders)],
+  ]);
+
+  if (isGraphqlRequest(request)) {
+    const methodRow = document.createElement("div");
+    methodRow.className = "graphql-detail-row";
+    methodRow.append(text("strong", undefined, "Method"));
+
+    const methodEditor = document.createElement("select");
+    methodEditor.className = "graphql-method-editor";
+    const methods = [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+      "HEAD",
+    ];
+    if (!methods.includes(request.method.toUpperCase())) {
+      methods.push(request.method.toUpperCase());
+    }
+    for (const method of methods) {
+      const option = document.createElement("option");
+      option.value = method;
+      option.textContent = method;
+      option.selected = method === request.method.toUpperCase();
+      methodEditor.append(option);
+    }
+    methodRow.append(methodEditor);
+    requestSection.append(methodRow);
+
+    const bodyRow = document.createElement("div");
+    bodyRow.className = "graphql-detail-row";
+    bodyRow.append(text("strong", undefined, "Payload"));
+
+    const bodyEditor = document.createElement("textarea");
+    bodyEditor.className = "graphql-payload-editor";
+    bodyEditor.value = request.body ?? "";
+    bodyEditor.rows = 10;
+    bodyEditor.spellcheck = false;
+    bodyEditor.setAttribute("aria-label", "Edited GraphQL payload");
+    bodyRow.append(bodyEditor);
+    requestSection.append(bodyRow);
+
+    const actions = document.createElement("div");
+    actions.className = "graphql-replay-actions";
+    const runButton = text("button", "btn-primary", "Run edited payload");
+    runButton.type = "button";
+    const replayStatus = text("span", "graphql-replay-status", "");
+    const replayOutput = document.createElement("div");
+    replayOutput.className = "graphql-replay-output";
+    runButton.addEventListener(
+      "click",
+      () =>
+        void replayGraphql(
+          request,
+          tabId,
+          methodEditor.value,
+          bodyEditor.value,
+          runButton,
+          replayStatus,
+          replayOutput,
+        ),
+    );
+    actions.append(runButton, replayStatus);
+    requestSection.append(actions);
+    requestSection.append(replayOutput);
+  } else {
+    requestSection.append(
+      detailSection("Payload", [["Body", request.body ?? "(empty)"]]),
+    );
+  }
+
   dialogBody.append(
     text("div", "graphql-detail-url", request.url),
-    detailSection("Request", [
-      ["Method", request.method],
-      ["Headers", formatHeaders(request.requestHeaders)],
-      ["Body", request.body ?? "(empty)"],
-    ]),
-    detailSection("Response", [
-      [
-        "Status",
-        request.source?.endsWith("-error")
-          ? "Transport error"
-          : request.responseStatus == null
-            ? "No response"
-            : String(request.responseStatus),
-      ],
-      ["Headers", formatHeaders(request.responseHeaders)],
-      ["Body", request.responseBody ?? "(empty or unavailable)"],
-    ]),
+    requestSection,
+    detailSection("Response", responseEntries(request)),
   );
   dialog.showModal();
+}
+
+async function replayGraphql(
+  request: RequestFact,
+  tabId: number | undefined,
+  method: string,
+  body: string,
+  button: HTMLButtonElement,
+  status: HTMLElement,
+  output: HTMLElement,
+): Promise<void> {
+  if (tabId == null) {
+    status.textContent = "No active tab.";
+    output.replaceChildren(
+      detailSection("Edited response", [["Error", status.textContent]]),
+    );
+    return;
+  }
+
+  button.disabled = true;
+  status.textContent = "Running...";
+  output.replaceChildren();
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "api-qa/replay-graphql",
+      tabId,
+      request: {
+        url: request.url,
+        method,
+        requestHeaders: request.requestHeaders,
+        body,
+      },
+    });
+
+    if (!response?.ok) {
+      status.textContent = response?.error ?? "Request failed.";
+      output.replaceChildren(
+        detailSection("Edited response", [["Error", status.textContent]]),
+      );
+      return;
+    }
+
+    status.textContent = `Completed with ${response.status}.`;
+    output.replaceChildren(
+      detailSection("Edited response", [
+        ["Status", String(response.status)],
+        ["Headers", formatHeaders(response.headers)],
+        ["Body", response.body ?? "(empty or unavailable)"],
+      ]),
+    );
+  } catch (error) {
+    status.textContent = String(error);
+    output.replaceChildren(
+      detailSection("Edited response", [["Error", status.textContent]]),
+    );
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function responseEntries(request: RequestFact): Array<[string, string]> {
+  return [
+    [
+      "Status",
+      request.source?.endsWith("-error")
+        ? "Transport error"
+        : request.responseStatus == null
+          ? "No response"
+          : String(request.responseStatus),
+    ],
+    ["Headers", formatHeaders(request.responseHeaders)],
+    ["Body", request.responseBody ?? "(empty or unavailable)"],
+  ];
 }
 
 function detailSection(

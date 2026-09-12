@@ -66,6 +66,56 @@
     }
   };
 
+  window.addEventListener("message", (event: MessageEvent) => {
+    if (
+      event.source !== window ||
+      event.data?.source !== "api-qa-command" ||
+      event.data.type !== "api-qa/replay-graphql"
+    ) {
+      return;
+    }
+
+    const request = event.data.request;
+    if (!request || typeof request.url !== "string") return;
+
+    void (async () => {
+      try {
+        const method = String(request.method ?? "POST").toUpperCase();
+        const response = await originalFetch(request.url, {
+          method,
+          headers: normalizeHeaders(request.requestHeaders),
+          body:
+            method === "GET" || method === "HEAD" ? undefined : request.body,
+          credentials: "include",
+        });
+
+        const responseHeaders: Record<string, string> = {};
+        response.headers.forEach((value, key) => {
+          responseHeaders[key.toLowerCase()] = value;
+        });
+
+        sendReplayResult(event.data.requestId, {
+          ok: true,
+          status: response.status,
+          headers: responseHeaders,
+          body: await responsePreview(response),
+        });
+      } catch (error) {
+        sendReplayResult(event.data.requestId, {
+          ok: false,
+          error: String(error),
+        });
+      }
+    })();
+  });
+
+  const sendReplayResult = (requestId: string, result: unknown): void => {
+    window.postMessage(
+      { source: "api-qa-replay", requestId, result },
+      targetOrigin,
+    );
+  };
+
   const originalFetch = window.fetch.bind(window);
 
   (window as any).fetch = async function (
